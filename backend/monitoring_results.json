@@ -1,0 +1,64 @@
+{
+  "health": {
+    "status": "online",
+    "version": "1.0.0",
+    "environment": "development",
+    "testnet_mode": true,
+    "services": {
+      "binance": false,
+      "ml": false,
+      "trading": false
+    },
+    "model_status": {
+      "loaded": false,
+      "path": "models/ppo_crypto_trader.zip"
+    }
+  },
+  "config": {
+    "environment": "development",
+    "debug": false,
+    "testnet_mode": true,
+    "api_credentials_configured": false,
+    "trading_config": {
+      "default_symbol": "BTCUSDT",
+      "trading_interval": 300,
+      "conservative_mode": {
+        "min_confidence": 0.8,
+        "max_position_size": 0.1,
+        "stop_loss": 0.02,
+        "take_profit": 0.04
+      },
+      "balanced_mode": {
+        "min_confidence": 0.65,
+        "max_position_size": 0.25,
+        "stop_loss": 0.03,
+        "take_profit": 0.06
+      },
+      "aggressive_mode": {
+        "min_confidence": 0.55,
+        "max_position_size": 0.5,
+        "stop_loss": 0.05,
+        "take_profit": 0.1
+      }
+    }
+  },
+  "api_tests": {
+    "/api/v1/market/price/BTCUSDT": {
+      "status": "service_unavailable",
+      "message": "Service not initialized"
+    },
+    "/api/v1/account/balance": {
+      "status": "service_unavailable",
+      "message": "Service not initialized"
+    },
+    "/api/v1/ml/status": {
+      "status": "service_unavailable",
+      "message": "Service not initialized"
+    },
+    "/api/v1/trading/status": {
+      "status": "service_unavailable",
+      "message": "Service not initialized"
+    }
+  },
+  "timestamp": 1761238370.797856
+}
