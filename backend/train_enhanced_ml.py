@@ -2,12 +2,8 @@
 Enhanced ML Training Script
 Comprehensive script to train, test, and validate the enhanced ML system for futures trading
 """
-import asyncio
 import requests
-import json
-import time
 import logging
-from datetime import datetime
 from typing import Dict, Any
 
 # Configure logging
@@ -56,7 +52,7 @@ class EnhancedMLTrainer:
     def train_enhanced_model(self, symbol: str = "BTCUSDT", timesteps: int = 200000, algorithm: str = "PPO") -> bool:
         """Train the enhanced ML model"""
         try:
-            logger.info(f"🚀 Starting enhanced model training...")
+            logger.info("🚀 Starting enhanced model training...")
             logger.info(f"   Symbol: {symbol}")
             logger.info(f"   Algorithm: {algorithm}")
             logger.info(f"   Timesteps: {timesteps:,}")
@@ -272,7 +268,7 @@ class EnhancedMLTrainer:
     def start_enhanced_trading(self, symbol: str = "BTCUSDT", mode: str = "balanced", leverage: int = 10) -> bool:
         """Start enhanced trading (for testing purposes)"""
         try:
-            logger.info(f"🚀 Starting enhanced trading...")
+            logger.info("🚀 Starting enhanced trading...")
             logger.info(f"   Symbol: {symbol}")
             logger.info(f"   Mode: {mode}")
             logger.info(f"   Leverage: {leverage}x")
