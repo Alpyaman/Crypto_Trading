@@ -9,6 +9,28 @@ class TradingDashboard:
     def __init__(self, base_url: str = "http://localhost:8000"):
         self.base_url = base_url
         self.session = requests.Session()
+        self.last_api_status = None
+    
+    def check_api_health(self):
+        """Check if API is responding"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/v1/health", timeout=5)
+            self.last_api_status = response.status_code == 200
+            return self.last_api_status
+        except Exception:
+            self.last_api_status = False
+            return False
+    
+    def check_binance_health(self):
+        """Check Binance API connectivity through our service"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/v1/health/binance", timeout=10)
+            return {
+                "connected": response.status_code == 200,
+                "message": response.json().get("message", "Unknown") if response.status_code == 200 else "Connection failed"
+            }
+        except Exception as e:
+            return {"connected": False, "message": f"Health check failed: {str(e)}"}
     
     def get_trading_status(self):
         """Get current trading status"""
@@ -21,14 +43,20 @@ class TradingDashboard:
             return None
     
     def get_current_price(self, symbol="BTCUSDT"):
-        """Get current market price"""
+        """Get current market price with error handling"""
         try:
-            response = self.session.get(f"{self.base_url}/api/v1/market/price/{symbol}")
+            response = self.session.get(f"{self.base_url}/api/v1/market/price/{symbol}", timeout=10)
             if response.status_code == 200:
                 return response.json()
-            return None
-        except Exception:
-            return None
+            elif response.status_code == 503:
+                return {"error": "API service unavailable", "symbol": symbol}
+            return {"error": f"HTTP {response.status_code}", "symbol": symbol}
+        except requests.exceptions.Timeout:
+            return {"error": "Request timeout", "symbol": symbol}
+        except requests.exceptions.ConnectionError:
+            return {"error": "Connection failed", "symbol": symbol}
+        except Exception as e:
+            return {"error": f"Unexpected error: {str(e)}", "symbol": symbol}
     
     def get_trading_history(self):
         """Get trading history"""
@@ -66,6 +94,17 @@ class TradingDashboard:
         print("=" * 50)
         print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
+        # Network Status Check
+        print("\n🌐 CONNECTION STATUS")
+        print("-" * 30)
+        api_healthy = self.check_api_health()
+        binance_status = self.check_binance_health()
+        
+        print(f"API Server: {'🟢 Online' if api_healthy else '🔴 Offline'}")
+        print(f"Binance API: {'🟢 Connected' if binance_status['connected'] else '🔴 Disconnected'}")
+        if not binance_status['connected']:
+            print(f"  Issue: {binance_status['message']}")
+        
         # Trading Status
         print("\n🚀 TRADING STATUS")
         print("-" * 30)
@@ -93,9 +132,11 @@ class TradingDashboard:
         print("\n📊 MARKET DATA")
         print("-" * 30)
         price_data = self.get_current_price()
-        if price_data:
+        if price_data and 'error' not in price_data:
             price = price_data.get('price', 0)
             print(f"BTC/USDT Price: ${price:,.2f}")
+        elif price_data and 'error' in price_data:
+            print(f"❌ Price Error: {price_data['error']}")
         else:
             print("❌ Unable to get current price")
         

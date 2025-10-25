@@ -18,6 +18,42 @@ ml_service = None
 trading_service = None
 
 
+# Health check endpoints
+@router.get("/health")
+async def health_check():
+    """Basic health check"""
+    return {"status": "healthy", "message": "API is running"}
+
+
+@router.get("/health/binance")
+async def binance_health_check():
+    """Check Binance API connectivity"""
+    if not binance_service:
+        raise HTTPException(status_code=503, detail="Binance service not initialized")
+    
+    try:
+        is_connected = binance_service.check_api_connectivity()
+        if is_connected:
+            return {"status": "healthy", "message": "Binance API is accessible"}
+        else:
+            raise HTTPException(status_code=503, detail="Binance API is not accessible")
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Binance API health check failed: {str(e)}")
+
+
+@router.get("/health/binance/status")
+async def binance_service_status():
+    """Get detailed Binance service status"""
+    if not binance_service:
+        raise HTTPException(status_code=503, detail="Binance service not initialized")
+    
+    try:
+        status = binance_service.get_service_status()
+        return status
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get service status: {str(e)}")
+
+
 # Pydantic models for request/response
 class StartTradingRequest(BaseModel):
     symbol: str = "BTCUSDT"
@@ -49,11 +85,21 @@ async def get_price(symbol: str):
     if not binance_service:
         raise HTTPException(status_code=503, detail="Binance service not initialized")
     
-    price = binance_service.get_current_price(symbol)
-    if price is None:
-        raise HTTPException(status_code=404, detail=f"Price not found for {symbol}")
-    
-    return {"symbol": symbol, "price": price}
+    try:
+        price = binance_service.get_current_price(symbol)
+        if price is None:
+            raise HTTPException(
+                status_code=503, 
+                detail=f"Unable to fetch price for {symbol}. This could be due to network issues or API timeout."
+            )
+        
+        return {"symbol": symbol, "price": price}
+    except Exception as e:
+        logger.error(f"Unexpected error in get_price endpoint: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Internal server error while fetching price for {symbol}"
+        )
 
 
 @router.get("/market/ticker/{symbol}")
@@ -93,8 +139,15 @@ async def get_balance():
     if not binance_service:
         raise HTTPException(status_code=503, detail="Binance service not initialized")
     
-    balance = binance_service.get_account_balance()
-    return balance
+    try:
+        balance = binance_service.get_account_balance()
+        return balance
+    except Exception as e:
+        logger.error(f"Unexpected error in get_balance endpoint: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail="Internal server error while fetching account balance"
+        )
 
 
 @router.post("/account/order")
