@@ -6,8 +6,9 @@ import os
 import numpy as np
 import pandas as pd
 from stable_baselines3 import PPO, A2C
-from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.monitor import Monitor
 from typing import Tuple, Dict
 import logging
 import joblib
@@ -379,14 +380,17 @@ class EnhancedMLService:
             # Detect market regime for training data
             self.detect_market_regime(enhanced_data)
             
-            # Wrap environment
+            # Wrap environment with Monitor and normalize observations/rewards
+            # Monitor records episode reward info; VecNormalize normalizes obs and rewards
+            env = Monitor(env)
             vec_env = DummyVecEnv([lambda: env])
+            vec_norm = VecNormalize(vec_env, norm_obs=True, norm_reward=True, clip_obs=10.0)
             
             # Choose algorithm
             if algorithm == 'PPO':
                 self.model = PPO(
                     "MlpPolicy",
-                    vec_env,
+                    vec_norm,
                     learning_rate=3e-4,
                     n_steps=2048,
                     batch_size=64,
@@ -429,7 +433,13 @@ class EnhancedMLService:
             
             # Save model and metadata
             os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
+            # Save trained model
             self.model.save(self.model_path)
+            # Save VecNormalize statistics so we can normalize observations/rewards at inference
+            try:
+                vec_norm.save(self.model_path.replace('.zip', '_vecnormalize.pkl'))
+            except Exception:
+                logger.warning("Could not save VecNormalize stats")
             
             # Save additional components
             joblib.dump(self.scaler, self.model_path.replace('.zip', '_scaler.pkl'))
@@ -455,7 +465,7 @@ class EnhancedMLService:
             return False
     
     def load_enhanced_model(self) -> bool:
-        """Load enhanced model with all components"""
+        """Load enhanced model with all components including VecNormalize"""
         try:
             if not os.path.exists(self.model_path):
                 logger.warning(f"Enhanced model not found at {self.model_path}")
@@ -463,6 +473,24 @@ class EnhancedMLService:
             
             # Load main model
             self.model = PPO.load(self.model_path)
+            
+            # Load VecNormalize stats if available
+            vecnormalize_path = self.model_path.replace('.zip', '_vecnormalize.pkl')
+            if os.path.exists(vecnormalize_path):
+                try:
+                    # Create a dummy env for VecNormalize loading
+                    from app.models.enhanced_futures_env import EnhancedFuturesEnv
+                    dummy_env = EnhancedFuturesEnv(symbol='BTCUSDT', initial_balance=10000.0, window_size=50)
+                    dummy_vec_env = DummyVecEnv([lambda: dummy_env])
+                    self.vec_normalize = VecNormalize.load(vecnormalize_path, venv=dummy_vec_env)
+                    # Set training=False for inference
+                    self.vec_normalize.training = False
+                    logger.info("VecNormalize stats loaded for inference")
+                except Exception as e:
+                    logger.warning(f"Could not load VecNormalize stats: {e}")
+                    self.vec_normalize = None
+            else:
+                self.vec_normalize = None
             
             # Load scaler if available
             scaler_path = self.model_path.replace('.zip', '_scaler.pkl')
@@ -495,8 +523,15 @@ class EnhancedMLService:
             return 0, 0.0, 0.0, {}
         
         try:
+            # Normalize observation if VecNormalize is available
+            if hasattr(self, 'vec_normalize') and self.vec_normalize is not None:
+                # VecNormalize expects observations in the shape (n_envs, obs_dim)
+                obs_normalized = self.vec_normalize.normalize_obs(observation.reshape(1, -1))[0]
+            else:
+                obs_normalized = observation
+            
             # Make prediction
-            action, _states = self.model.predict(observation, deterministic=deterministic)
+            action, _states = self.model.predict(obs_normalized, deterministic=deterministic)
             
             if hasattr(action, 'item'):
                 action = action.item()
