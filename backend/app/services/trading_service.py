@@ -1,6 +1,6 @@
 """
-Trading Service
-Orchestrates trading operations using ML predictions and Binance API
+Trading Service - Enhanced for Futures Trading
+Orchestrates trading operations using ML predictions and Binance Futures API
 """
 import logging
 import asyncio
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class TradingService:
-    """Main trading service that coordinates ML predictions and order execution"""
+    """Main trading service that coordinates ML predictions and futures order execution"""
     
     def __init__(self, binance_service: BinanceService, ml_service: MLService):
         self.binance_service = binance_service
@@ -24,8 +24,12 @@ class TradingService:
         self.trading_history = []
         self.current_position = None
         
-    def start_trading(self, symbol: str = "BTCUSDT", mode: str = "balanced") -> bool:
-        """Start automated trading"""
+        # Futures trading configuration
+        self.default_leverage = 10
+        self.use_leverage = True
+        
+    def start_trading(self, symbol: str = "BTCUSDT", mode: str = "balanced", leverage: int = 10) -> bool:
+        """Start automated futures trading"""
         try:
             if self.is_trading:
                 logger.warning("Trading is already active")
@@ -34,18 +38,36 @@ class TradingService:
             if not self.ml_service.model:
                 logger.error("No trained model available")
                 return False
+            
+            # Set up futures trading
+            self._setup_futures_trading(symbol, leverage)
                 
             self.is_trading = True
             self.trading_task = asyncio.create_task(
                 self._trading_loop(symbol, mode)
             )
             
-            logger.info(f"Started trading {symbol} in {mode} mode")
+            logger.info(f"Started futures trading {symbol} in {mode} mode with {leverage}x leverage")
             return True
             
         except Exception as e:
-            logger.error(f"Error starting trading: {e}")
+            logger.error(f"Error starting futures trading: {e}")
             return False
+    
+    def _setup_futures_trading(self, symbol: str, leverage: int):
+        """Set up futures trading configuration"""
+        try:
+            # Set margin type to CROSSED for better risk management
+            self.binance_service.set_margin_type(symbol, 'CROSSED')
+            
+            # Set leverage
+            if self.use_leverage:
+                self.binance_service.set_leverage(symbol, leverage)
+                logger.info(f"Futures trading setup complete for {symbol} with {leverage}x leverage")
+            
+        except Exception as e:
+            logger.error(f"Error setting up futures trading: {e}")
+            raise
     
     def stop_trading(self) -> bool:
         """Stop automated trading"""
@@ -207,10 +229,14 @@ class TradingService:
         current_price: float,
         mode: str
     ):
-        """Execute trading decision based on ML prediction"""
+        """Execute futures trading decision based on ML prediction"""
         try:
-            # Get account balance
-            balance = self.binance_service.get_account_balance()
+            # Get current positions
+            positions = self.binance_service.get_position_info(symbol)
+            current_position = positions[0] if positions else None
+            
+            # Get portfolio information
+            portfolio = self.binance_service.get_portfolio_value()
             
             # Define risk parameters based on mode
             risk_params = self._get_risk_parameters(mode)
@@ -219,46 +245,79 @@ class TradingService:
             if confidence < risk_params['min_confidence']:
                 return
             
-            # Calculate position size
-            position_size = self._calculate_position_size(
-                balance, current_price, risk_params
+            # Calculate position size based on available balance
+            position_size = self._calculate_futures_position_size(
+                portfolio, current_price, risk_params
             )
             
             if position_size <= 0:
                 return
             
-            # Execute action
+            # Execute action based on current position and signal
             if action == 1:  # Buy signal
-                await self._execute_buy(symbol, position_size, current_price)
+                await self._execute_futures_buy(symbol, position_size, current_price, current_position)
             elif action == 2:  # Sell signal
-                await self._execute_sell(symbol, position_size, current_price)
+                await self._execute_futures_sell(symbol, position_size, current_price, current_position)
             # action == 0 is hold, do nothing
             
         except Exception as e:
-            logger.error(f"Error executing trading decision: {e}")
+            logger.error(f"Error executing futures trading decision: {e}")
+    
+    def _calculate_futures_position_size(
+        self, 
+        portfolio: Dict, 
+        current_price: float, 
+        risk_params: Dict
+    ) -> float:
+        """Calculate position size for futures trading"""
+        try:
+            available_balance = portfolio.get('available_balance', 0)
+            
+            if available_balance <= 0:
+                return 0
+            
+            # Use a percentage of available balance for position
+            max_position_value = available_balance * risk_params['max_position_size']
+            
+            # With leverage, we can trade larger positions
+            leveraged_position_value = max_position_value * self.default_leverage
+            
+            # Calculate quantity based on current price
+            position_size = leveraged_position_value / current_price
+            
+            # Round to appropriate precision (typically 3 decimal places for BTC)
+            position_size = round(position_size, 3)
+            
+            logger.info(f"Calculated futures position size: {position_size} (leveraged value: ${leveraged_position_value:.2f})")
+            return position_size
+            
+        except Exception as e:
+            logger.error(f"Error calculating futures position size: {e}")
+            return 0
     
     def _get_risk_parameters(self, mode: str) -> Dict[str, float]:
-        """Get risk parameters based on trading mode"""
+        """Get risk parameters based on trading mode for futures"""
         params = {
             'conservative': {
                 'min_confidence': 0.8,
-                'max_position_size': 0.1,  # 10% of balance
+                'max_position_size': 0.05,  # 5% of available balance per trade
                 'stop_loss': 0.02,  # 2%
                 'take_profit': 0.04  # 4%
             },
             'balanced': {
                 'min_confidence': 0.65,
-                'max_position_size': 0.25,  # 25% of balance
+                'max_position_size': 0.1,  # 10% of available balance per trade
                 'stop_loss': 0.03,  # 3%
                 'take_profit': 0.06  # 6%
             },
             'aggressive': {
                 'min_confidence': 0.55,
-                'max_position_size': 0.5,  # 50% of balance
+                'max_position_size': 0.2,  # 20% of available balance per trade
                 'stop_loss': 0.05,  # 5%
-                'take_profit': 0.1   # 10%
+                'take_profit': 0.1  # 10%
             }
         }
+        
         return params.get(mode, params['balanced'])
     
     def _calculate_position_size(
@@ -284,6 +343,87 @@ class TradingService:
         except Exception as e:
             logger.error(f"Error calculating position size: {e}")
             return 0
+    
+    async def _execute_futures_buy(self, symbol: str, quantity: float, price: float, current_position: Optional[Dict]):
+        """Execute futures buy order (long position)"""
+        try:
+            # If we have a short position, close it first
+            if current_position and current_position['side'] == 'SHORT':
+                logger.info("Closing existing SHORT position before opening LONG")
+                close_result = self.binance_service.close_position(symbol)
+                if close_result:
+                    self._log_trade('CLOSE_SHORT', symbol, current_position['position_amt'], price, close_result.get('orderId'))
+            
+            # Open long position
+            result = self.binance_service.place_futures_order(
+                symbol=symbol,
+                side='BUY',
+                quantity=quantity,
+                order_type='MARKET'
+            )
+            
+            if result:
+                self.current_position = {
+                    'symbol': symbol,
+                    'side': 'LONG',
+                    'quantity': result['quantity'],
+                    'entry_price': result.get('avg_price', price),
+                    'timestamp': datetime.now(),
+                    'order_id': result['orderId'],
+                    'leverage': self.default_leverage
+                }
+                
+                self._log_trade('BUY_LONG', symbol, result['quantity'], result.get('avg_price', price), result['orderId'])
+                logger.info(f"Executed LONG position: {result}")
+            
+        except Exception as e:
+            logger.error(f"Error executing futures buy order: {e}")
+    
+    async def _execute_futures_sell(self, symbol: str, quantity: float, price: float, current_position: Optional[Dict]):
+        """Execute futures sell order (short position)"""
+        try:
+            # If we have a long position, close it first
+            if current_position and current_position['side'] == 'LONG':
+                logger.info("Closing existing LONG position before opening SHORT")
+                close_result = self.binance_service.close_position(symbol)
+                if close_result:
+                    self._log_trade('CLOSE_LONG', symbol, current_position['position_amt'], price, close_result.get('orderId'))
+            
+            # Open short position
+            result = self.binance_service.place_futures_order(
+                symbol=symbol,
+                side='SELL',
+                quantity=quantity,
+                order_type='MARKET'
+            )
+            
+            if result:
+                self.current_position = {
+                    'symbol': symbol,
+                    'side': 'SHORT',
+                    'quantity': result['quantity'],
+                    'entry_price': result.get('avg_price', price),
+                    'timestamp': datetime.now(),
+                    'order_id': result['orderId'],
+                    'leverage': self.default_leverage
+                }
+                
+                self._log_trade('SELL_SHORT', symbol, result['quantity'], result.get('avg_price', price), result['orderId'])
+                logger.info(f"Executed SHORT position: {result}")
+            
+        except Exception as e:
+            logger.error(f"Error executing futures sell order: {e}")
+    
+    def _log_trade(self, action: str, symbol: str, quantity: float, price: float, order_id: int):
+        """Log a trade to trading history"""
+        self.trading_history.append({
+            'action': action,
+            'symbol': symbol,
+            'quantity': quantity,
+            'price': price,
+            'timestamp': datetime.now(),
+            'order_id': order_id
+        })
     
     async def _execute_buy(self, symbol: str, quantity: float, price: float):
         """Execute buy order"""
@@ -354,12 +494,18 @@ class TradingService:
             logger.error(f"Error executing sell order: {e}")
     
     def get_trading_status(self) -> Dict:
-        """Get current trading status"""
+        """Get current futures trading status"""
+        # Get live position information from Binance
+        live_positions = self.binance_service.get_position_info()
+        
         return {
             'is_trading': self.is_trading,
             'current_position': self.current_position,
+            'live_positions': live_positions,
             'total_trades': len(self.trading_history),
-            'recent_trades': self.trading_history[-5:] if self.trading_history else []
+            'recent_trades': self.trading_history[-5:] if self.trading_history else [],
+            'leverage': self.default_leverage,
+            'trading_mode': 'futures'
         }
     
     def get_trading_history(self) -> List[Dict]:

@@ -15,6 +15,7 @@ from app.services.binance_service import BinanceService
 from app.services.ml_service import MLService
 from app.services.trading_service import TradingService
 from app.api.routes import router, set_services
+from app.api.enhanced_routes import router as enhanced_router
 
 # Load environment variables
 load_dotenv()
@@ -80,6 +81,7 @@ class OrderRequest(BaseModel):
 
 # Include API routes
 app.include_router(router, prefix="/api/v1")
+app.include_router(enhanced_router, prefix="/api/v1")
 
 async def startup_event():
     """Initialize services on startup"""

@@ -5,20 +5,20 @@
     "environment": "development",
     "testnet_mode": true,
     "services": {
-      "binance": false,
-      "ml": false,
-      "trading": false
+      "binance": true,
+      "ml": true,
+      "trading": true
     },
     "model_status": {
-      "loaded": false,
+      "loaded": true,
       "path": "models/ppo_crypto_trader.zip"
     }
   },
   "config": {
     "environment": "development",
-    "debug": false,
+    "debug": true,
     "testnet_mode": true,
-    "api_credentials_configured": false,
+    "api_credentials_configured": true,
     "trading_config": {
       "default_symbol": "BTCUSDT",
       "trading_interval": 300,
@@ -44,21 +44,2223 @@
   },
   "api_tests": {
     "/api/v1/market/price/BTCUSDT": {
-      "status": "service_unavailable",
-      "message": "Service not initialized"
+      "status": "success",
+      "data": {
+        "symbol": "BTCUSDT",
+        "price": 111722.25
+      }
     },
     "/api/v1/account/balance": {
-      "status": "service_unavailable",
-      "message": "Service not initialized"
+      "status": "success",
+      "data": {
+        "ETH": {
+          "free": 1.0,
+          "locked": 0.0,
+          "total": 1.0
+        },
+        "BTC": {
+          "free": 1.0,
+          "locked": 0.0,
+          "total": 1.0
+        },
+        "LTC": {
+          "free": 4.0,
+          "locked": 0.0,
+          "total": 4.0
+        },
+        "BNB": {
+          "free": 1.0,
+          "locked": 0.0,
+          "total": 1.0
+        },
+        "USDT": {
+          "free": 10000.0,
+          "locked": 0.0,
+          "total": 10000.0
+        },
+        "TRX": {
+          "free": 1478.0,
+          "locked": 0.0,
+          "total": 1478.0
+        },
+        "XRP": {
+          "free": 170.0,
+          "locked": 0.0,
+          "total": 170.0
+        },
+        "NEO": {
+          "free": 83.0,
+          "locked": 0.0,
+          "total": 83.0
+        },
+        "QTUM": {
+          "free": 226.0,
+          "locked": 0.0,
+          "total": 226.0
+        },
+        "GAS": {
+          "free": 166.0,
+          "locked": 0.0,
+          "total": 166.0
+        },
+        "LRC": {
+          "free": 5634.0,
+          "locked": 0.0,
+          "total": 5634.0
+        },
+        "ZRX": {
+          "free": 2034.0,
+          "locked": 0.0,
+          "total": 2034.0
+        },
+        "KNC": {
+          "free": 1481.0,
+          "locked": 0.0,
+          "total": 1481.0
+        },
+        "IOTA": {
+          "free": 2888.0,
+          "locked": 0.0,
+          "total": 2888.0
+        },
+        "LINK": {
+          "free": 22.0,
+          "locked": 0.0,
+          "total": 22.0
+        },
+        "XVG": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "MTL": {
+          "free": 772.0,
+          "locked": 0.0,
+          "total": 772.0
+        },
+        "ETC": {
+          "free": 26.0,
+          "locked": 0.0,
+          "total": 26.0
+        },
+        "ZEC": {
+          "free": 5.0,
+          "locked": 0.0,
+          "total": 5.0
+        },
+        "DASH": {
+          "free": 19.0,
+          "locked": 0.0,
+          "total": 19.0
+        },
+        "REQ": {
+          "free": 3963.0,
+          "locked": 0.0,
+          "total": 3963.0
+        },
+        "POWR": {
+          "free": 3433.0,
+          "locked": 0.0,
+          "total": 3433.0
+        },
+        "ENJ": {
+          "free": 7888.0,
+          "locked": 0.0,
+          "total": 7888.0
+        },
+        "STORJ": {
+          "free": 2136.0,
+          "locked": 0.0,
+          "total": 2136.0
+        },
+        "BAT": {
+          "free": 3430.0,
+          "locked": 0.0,
+          "total": 3430.0
+        },
+        "LSK": {
+          "free": 1656.0,
+          "locked": 0.0,
+          "total": 1656.0
+        },
+        "MANA": {
+          "free": 1657.0,
+          "locked": 0.0,
+          "total": 1657.0
+        },
+        "ADX": {
+          "free": 4834.0,
+          "locked": 0.0,
+          "total": 4834.0
+        },
+        "ADA": {
+          "free": 600.0,
+          "locked": 0.0,
+          "total": 600.0
+        },
+        "XLM": {
+          "free": 1316.0,
+          "locked": 0.0,
+          "total": 1316.0
+        },
+        "ICX": {
+          "free": 4291.0,
+          "locked": 0.0,
+          "total": 4291.0
+        },
+        "RLC": {
+          "free": 471.0,
+          "locked": 0.0,
+          "total": 471.0
+        },
+        "PIVX": {
+          "free": 3918.0,
+          "locked": 0.0,
+          "total": 3918.0
+        },
+        "STEEM": {
+          "free": 4134.0,
+          "locked": 0.0,
+          "total": 4134.0
+        },
+        "ZIL": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "ONT": {
+          "free": 4044.0,
+          "locked": 0.0,
+          "total": 4044.0
+        },
+        "WAN": {
+          "free": 5059.0,
+          "locked": 0.0,
+          "total": 5059.0
+        },
+        "SYS": {
+          "free": 14066.0,
+          "locked": 0.0,
+          "total": 14066.0
+        },
+        "TUSD": {
+          "free": 10000.0,
+          "locked": 0.0,
+          "total": 10000.0
+        },
+        "ZEN": {
+          "free": 56.0,
+          "locked": 0.0,
+          "total": 56.0
+        },
+        "THETA": {
+          "free": 695.0,
+          "locked": 0.0,
+          "total": 695.0
+        },
+        "IOTX": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "DATA": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "SC": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "DENT": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "ARDR": {
+          "free": 6267.0,
+          "locked": 0.0,
+          "total": 6267.0
+        },
+        "HOT": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "VET": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "RVN": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "USDC": {
+          "free": 10000.0,
+          "locked": 0.0,
+          "total": 10000.0
+        },
+        "ONG": {
+          "free": 3271.0,
+          "locked": 0.0,
+          "total": 3271.0
+        },
+        "FET": {
+          "free": 883.0,
+          "locked": 0.0,
+          "total": 883.0
+        },
+        "IOST": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "CELR": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "ATOM": {
+          "free": 118.0,
+          "locked": 0.0,
+          "total": 118.0
+        },
+        "PHB": {
+          "free": 972.0,
+          "locked": 0.0,
+          "total": 972.0
+        },
+        "TFUEL": {
+          "free": 15910.0,
+          "locked": 0.0,
+          "total": 15910.0
+        },
+        "ONE": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "ALGO": {
+          "free": 2303.0,
+          "locked": 0.0,
+          "total": 2303.0
+        },
+        "DOGE": {
+          "free": 2061.0,
+          "locked": 0.0,
+          "total": 2061.0
+        },
+        "DUSK": {
+          "free": 8899.0,
+          "locked": 0.0,
+          "total": 8899.0
+        },
+        "ANKR": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "WIN": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "COS": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "FUN": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "CVC": {
+          "free": 5937.0,
+          "locked": 0.0,
+          "total": 5937.0
+        },
+        "CHZ": {
+          "free": 11259.0,
+          "locked": 0.0,
+          "total": 11259.0
+        },
+        "BAND": {
+          "free": 749.0,
+          "locked": 0.0,
+          "total": 749.0
+        },
+        "XTZ": {
+          "free": 723.0,
+          "locked": 0.0,
+          "total": 723.0
+        },
+        "HBAR": {
+          "free": 2272.0,
+          "locked": 0.0,
+          "total": 2272.0
+        },
+        "NKN": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "STX": {
+          "free": 845.0,
+          "locked": 0.0,
+          "total": 845.0
+        },
+        "KAVA": {
+          "free": 1538.0,
+          "locked": 0.0,
+          "total": 1538.0
+        },
+        "ARPA": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "BCH": {
+          "free": 1.0,
+          "locked": 0.0,
+          "total": 1.0
+        },
+        "FTT": {
+          "free": 529.0,
+          "locked": 0.0,
+          "total": 529.0
+        },
+        "TRY": {
+          "free": 18466.0,
+          "locked": 0.0,
+          "total": 18466.0
+        },
+        "EUR": {
+          "free": 426.0,
+          "locked": 0.0,
+          "total": 426.0
+        },
+        "OGN": {
+          "free": 8473.0,
+          "locked": 0.0,
+          "total": 8473.0
+        },
+        "BNT": {
+          "free": 732.0,
+          "locked": 0.0,
+          "total": 732.0
+        },
+        "MBL": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "COTI": {
+          "free": 11181.0,
+          "locked": 0.0,
+          "total": 11181.0
+        },
+        "ZAR": {
+          "free": 18466.0,
+          "locked": 0.0,
+          "total": 18466.0
+        },
+        "SOL": {
+          "free": 2.0,
+          "locked": 0.0,
+          "total": 2.0
+        },
+        "CTSI": {
+          "free": 6579.0,
+          "locked": 0.0,
+          "total": 6579.0
+        },
+        "HIVE": {
+          "free": 2711.0,
+          "locked": 0.0,
+          "total": 2711.0
+        },
+        "CHR": {
+          "free": 5945.0,
+          "locked": 0.0,
+          "total": 5945.0
+        },
+        "MDT": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "UAH": {
+          "free": 18466.0,
+          "locked": 0.0,
+          "total": 18466.0
+        },
+        "COMP": {
+          "free": 11.0,
+          "locked": 0.0,
+          "total": 11.0
+        },
+        "SXP": {
+          "free": 3132.0,
+          "locked": 0.0,
+          "total": 3132.0
+        },
+        "SNX": {
+          "free": 454.0,
+          "locked": 0.0,
+          "total": 454.0
+        },
+        "VTHO": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "DGB": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "RUNE": {
+          "free": 420.0,
+          "locked": 0.0,
+          "total": 420.0
+        },
+        "DCR": {
+          "free": 29.0,
+          "locked": 0.0,
+          "total": 29.0
+        },
+        "AVA": {
+          "free": 983.0,
+          "locked": 0.0,
+          "total": 983.0
+        },
+        "YFI": {
+          "free": 1.0,
+          "locked": 0.0,
+          "total": 1.0
+        },
+        "DAI": {
+          "free": 10000.0,
+          "locked": 0.0,
+          "total": 10000.0
+        },
+        "JST": {
+          "free": 15391.0,
+          "locked": 0.0,
+          "total": 15391.0
+        },
+        "CRV": {
+          "free": 690.0,
+          "locked": 0.0,
+          "total": 690.0
+        },
+        "SAND": {
+          "free": 1813.0,
+          "locked": 0.0,
+          "total": 1813.0
+        },
+        "NMR": {
+          "free": 29.0,
+          "locked": 0.0,
+          "total": 29.0
+        },
+        "DOT": {
+          "free": 122.0,
+          "locked": 0.0,
+          "total": 122.0
+        },
+        "LUNA": {
+          "free": 3535.0,
+          "locked": 0.0,
+          "total": 3535.0
+        },
+        "RSR": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "PAXG": {
+          "free": 1.0,
+          "locked": 0.0,
+          "total": 1.0
+        },
+        "TRB": {
+          "free": 15.0,
+          "locked": 0.0,
+          "total": 15.0
+        },
+        "WBTC": {
+          "free": 1.0,
+          "locked": 0.0,
+          "total": 1.0
+        },
+        "SUSHI": {
+          "free": 721.0,
+          "locked": 0.0,
+          "total": 721.0
+        },
+        "KSM": {
+          "free": 34.0,
+          "locked": 0.0,
+          "total": 34.0
+        },
+        "EGLD": {
+          "free": 37.0,
+          "locked": 0.0,
+          "total": 37.0
+        },
+        "DIA": {
+          "free": 863.0,
+          "locked": 0.0,
+          "total": 863.0
+        },
+        "FIO": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "UMA": {
+          "free": 409.0,
+          "locked": 0.0,
+          "total": 409.0
+        },
+        "BEL": {
+          "free": 2085.0,
+          "locked": 0.0,
+          "total": 2085.0
+        },
+        "UNI": {
+          "free": 63.0,
+          "locked": 0.0,
+          "total": 63.0
+        },
+        "OXT": {
+          "free": 10401.0,
+          "locked": 0.0,
+          "total": 10401.0
+        },
+        "SUN": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "AVAX": {
+          "free": 16.0,
+          "locked": 0.0,
+          "total": 16.0
+        },
+        "FLM": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "SCRT": {
+          "free": 3144.0,
+          "locked": 0.0,
+          "total": 3144.0
+        },
+        "CAKE": {
+          "free": 192.0,
+          "locked": 0.0,
+          "total": 192.0
+        },
+        "UTK": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "XVS": {
+          "free": 83.0,
+          "locked": 0.0,
+          "total": 83.0
+        },
+        "BRL": {
+          "free": 97.0,
+          "locked": 0.0,
+          "total": 97.0
+        },
+        "AAVE": {
+          "free": 1.0,
+          "locked": 0.0,
+          "total": 1.0
+        },
+        "NEAR": {
+          "free": 178.0,
+          "locked": 0.0,
+          "total": 178.0
+        },
+        "FIL": {
+          "free": 221.0,
+          "locked": 0.0,
+          "total": 221.0
+        },
+        "INJ": {
+          "free": 40.0,
+          "locked": 0.0,
+          "total": 40.0
+        },
+        "AUDIO": {
+          "free": 9139.0,
+          "locked": 0.0,
+          "total": 9139.0
+        },
+        "CTK": {
+          "free": 1481.0,
+          "locked": 0.0,
+          "total": 1481.0
+        },
+        "AXS": {
+          "free": 228.0,
+          "locked": 0.0,
+          "total": 228.0
+        },
+        "SLP": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "STRAX": {
+          "free": 13000.0,
+          "locked": 0.0,
+          "total": 13000.0
+        },
+        "ROSE": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "SKL": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "GLM": {
+          "free": 2243.0,
+          "locked": 0.0,
+          "total": 2243.0
+        },
+        "GRT": {
+          "free": 5950.0,
+          "locked": 0.0,
+          "total": 5950.0
+        },
+        "JUV": {
+          "free": 456.0,
+          "locked": 0.0,
+          "total": 456.0
+        },
+        "PSG": {
+          "free": 318.0,
+          "locked": 0.0,
+          "total": 318.0
+        },
+        "1INCH": {
+          "free": 1916.0,
+          "locked": 0.0,
+          "total": 1916.0
+        },
+        "OG": {
+          "free": 31.0,
+          "locked": 0.0,
+          "total": 31.0
+        },
+        "ATM": {
+          "free": 349.0,
+          "locked": 0.0,
+          "total": 349.0
+        },
+        "ASR": {
+          "free": 221.0,
+          "locked": 0.0,
+          "total": 221.0
+        },
+        "CELO": {
+          "free": 1956.0,
+          "locked": 0.0,
+          "total": 1956.0
+        },
+        "RIF": {
+          "free": 8761.0,
+          "locked": 0.0,
+          "total": 8761.0
+        },
+        "TRU": {
+          "free": 17544.0,
+          "locked": 0.0,
+          "total": 17544.0
+        },
+        "CKB": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "TWT": {
+          "free": 392.0,
+          "locked": 0.0,
+          "total": 392.0
+        },
+        "SFP": {
+          "free": 990.0,
+          "locked": 0.0,
+          "total": 990.0
+        },
+        "DODO": {
+          "free": 11198.0,
+          "locked": 0.0,
+          "total": 11198.0
+        },
+        "ACM": {
+          "free": 577.0,
+          "locked": 0.0,
+          "total": 577.0
+        },
+        "AUCTION": {
+          "free": 58.0,
+          "locked": 0.0,
+          "total": 58.0
+        },
+        "PHA": {
+          "free": 5268.0,
+          "locked": 0.0,
+          "total": 5268.0
+        },
+        "FIS": {
+          "free": 5932.0,
+          "locked": 0.0,
+          "total": 5932.0
+        },
+        "OM": {
+          "free": 2931.0,
+          "locked": 0.0,
+          "total": 2931.0
+        },
+        "POND": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "DEGO": {
+          "free": 461.0,
+          "locked": 0.0,
+          "total": 461.0
+        },
+        "ALICE": {
+          "free": 1647.0,
+          "locked": 0.0,
+          "total": 1647.0
+        },
+        "PERP": {
+          "free": 1721.0,
+          "locked": 0.0,
+          "total": 1721.0
+        },
+        "SUPER": {
+          "free": 836.0,
+          "locked": 0.0,
+          "total": 836.0
+        },
+        "CFX": {
+          "free": 3397.0,
+          "locked": 0.0,
+          "total": 3397.0
+        },
+        "TKO": {
+          "free": 2797.0,
+          "locked": 0.0,
+          "total": 2797.0
+        },
+        "PUNDIX": {
+          "free": 1567.0,
+          "locked": 0.0,
+          "total": 1567.0
+        },
+        "TLM": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "BAR": {
+          "free": 481.0,
+          "locked": 0.0,
+          "total": 481.0
+        },
+        "FORTH": {
+          "free": 190.0,
+          "locked": 0.0,
+          "total": 190.0
+        },
+        "SHIB": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "ICP": {
+          "free": 114.0,
+          "locked": 0.0,
+          "total": 114.0
+        },
+        "AR": {
+          "free": 85.0,
+          "locked": 0.0,
+          "total": 85.0
+        },
+        "MASK": {
+          "free": 397.0,
+          "locked": 0.0,
+          "total": 397.0
+        },
+        "LPT": {
+          "free": 79.0,
+          "locked": 0.0,
+          "total": 79.0
+        },
+        "ATA": {
+          "free": 12515.0,
+          "locked": 0.0,
+          "total": 12515.0
+        },
+        "GTC": {
+          "free": 1869.0,
+          "locked": 0.0,
+          "total": 1869.0
+        },
+        "MLN": {
+          "free": 65.0,
+          "locked": 0.0,
+          "total": 65.0
+        },
+        "DEXE": {
+          "free": 53.0,
+          "locked": 0.0,
+          "total": 53.0
+        },
+        "C98": {
+          "free": 10478.0,
+          "locked": 0.0,
+          "total": 10478.0
+        },
+        "QNT": {
+          "free": 4.0,
+          "locked": 0.0,
+          "total": 4.0
+        },
+        "FLOW": {
+          "free": 1374.0,
+          "locked": 0.0,
+          "total": 1374.0
+        },
+        "MINA": {
+          "free": 3166.0,
+          "locked": 0.0,
+          "total": 3166.0
+        },
+        "RAY": {
+          "free": 178.0,
+          "locked": 0.0,
+          "total": 178.0
+        },
+        "FARM": {
+          "free": 18.0,
+          "locked": 0.0,
+          "total": 18.0
+        },
+        "QUICK": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "MBOX": {
+          "free": 8891.0,
+          "locked": 0.0,
+          "total": 8891.0
+        },
+        "GHST": {
+          "free": 1206.0,
+          "locked": 0.0,
+          "total": 1206.0
+        },
+        "WAXP": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "GNO": {
+          "free": 3.0,
+          "locked": 0.0,
+          "total": 3.0
+        },
+        "XEC": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "DYDX": {
+          "free": 825.0,
+          "locked": 0.0,
+          "total": 825.0
+        },
+        "IDEX": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "USDP": {
+          "free": 500.0,
+          "locked": 0.0,
+          "total": 500.0
+        },
+        "GALA": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "ILV": {
+          "free": 37.0,
+          "locked": 0.0,
+          "total": 37.0
+        },
+        "YGG": {
+          "free": 2986.0,
+          "locked": 0.0,
+          "total": 2986.0
+        },
+        "DF": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "FIDA": {
+          "free": 6132.0,
+          "locked": 0.0,
+          "total": 6132.0
+        },
+        "AGLD": {
+          "free": 900.0,
+          "locked": 0.0,
+          "total": 900.0
+        },
+        "RAD": {
+          "free": 794.0,
+          "locked": 0.0,
+          "total": 794.0
+        },
+        "RARE": {
+          "free": 9735.0,
+          "locked": 0.0,
+          "total": 9735.0
+        },
+        "SSV": {
+          "free": 64.0,
+          "locked": 0.0,
+          "total": 64.0
+        },
+        "LAZIO": {
+          "free": 491.0,
+          "locked": 0.0,
+          "total": 491.0
+        },
+        "CHESS": {
+          "free": 8214.0,
+          "locked": 0.0,
+          "total": 8214.0
+        },
+        "MOVR": {
+          "free": 90.0,
+          "locked": 0.0,
+          "total": 90.0
+        },
+        "CITY": {
+          "free": 503.0,
+          "locked": 0.0,
+          "total": 503.0
+        },
+        "ENS": {
+          "free": 24.0,
+          "locked": 0.0,
+          "total": 24.0
+        },
+        "QI": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "PORTO": {
+          "free": 461.0,
+          "locked": 0.0,
+          "total": 461.0
+        },
+        "JASMY": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "AMP": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "PYR": {
+          "free": 507.0,
+          "locked": 0.0,
+          "total": 507.0
+        },
+        "ALCX": {
+          "free": 58.0,
+          "locked": 0.0,
+          "total": 58.0
+        },
+        "SANTOS": {
+          "free": 251.0,
+          "locked": 0.0,
+          "total": 251.0
+        },
+        "BICO": {
+          "free": 5322.0,
+          "locked": 0.0,
+          "total": 5322.0
+        },
+        "FLUX": {
+          "free": 2599.0,
+          "locked": 0.0,
+          "total": 2599.0
+        },
+        "FXS": {
+          "free": 224.0,
+          "locked": 0.0,
+          "total": 224.0
+        },
+        "VOXEL": {
+          "free": 10062.0,
+          "locked": 0.0,
+          "total": 10062.0
+        },
+        "HIGH": {
+          "free": 1043.0,
+          "locked": 0.0,
+          "total": 1043.0
+        },
+        "CVX": {
+          "free": 149.0,
+          "locked": 0.0,
+          "total": 149.0
+        },
+        "PEOPLE": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "SPELL": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "JOE": {
+          "free": 2983.0,
+          "locked": 0.0,
+          "total": 2983.0
+        },
+        "ACH": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "IMX": {
+          "free": 695.0,
+          "locked": 0.0,
+          "total": 695.0
+        },
+        "GLMR": {
+          "free": 8489.0,
+          "locked": 0.0,
+          "total": 8489.0
+        },
+        "API3": {
+          "free": 636.0,
+          "locked": 0.0,
+          "total": 636.0
+        },
+        "BTTC": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "ACA": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "XNO": {
+          "free": 610.0,
+          "locked": 0.0,
+          "total": 610.0
+        },
+        "WOO": {
+          "free": 7642.0,
+          "locked": 0.0,
+          "total": 7642.0
+        },
+        "ALPINE": {
+          "free": 268.0,
+          "locked": 0.0,
+          "total": 268.0
+        },
+        "T": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "ASTR": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "GMT": {
+          "free": 12690.0,
+          "locked": 0.0,
+          "total": 12690.0
+        },
+        "KDA": {
+          "free": 1364.0,
+          "locked": 0.0,
+          "total": 1364.0
+        },
+        "APE": {
+          "free": 913.0,
+          "locked": 0.0,
+          "total": 913.0
+        },
+        "BIFI": {
+          "free": 2.0,
+          "locked": 0.0,
+          "total": 2.0
+        },
+        "NEXO": {
+          "free": 400.0,
+          "locked": 0.0,
+          "total": 400.0
+        },
+        "REI": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "LDO": {
+          "free": 434.0,
+          "locked": 0.0,
+          "total": 434.0
+        },
+        "OP": {
+          "free": 724.0,
+          "locked": 0.0,
+          "total": 724.0
+        },
+        "STG": {
+          "free": 2839.0,
+          "locked": 0.0,
+          "total": 2839.0
+        },
+        "LUNC": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "GMX": {
+          "free": 32.0,
+          "locked": 0.0,
+          "total": 32.0
+        },
+        "POLYX": {
+          "free": 4228.0,
+          "locked": 0.0,
+          "total": 4228.0
+        },
+        "APT": {
+          "free": 109.0,
+          "locked": 0.0,
+          "total": 109.0
+        },
+        "PLN": {
+          "free": 18466.0,
+          "locked": 0.0,
+          "total": 18466.0
+        },
+        "OSMO": {
+          "free": 3553.0,
+          "locked": 0.0,
+          "total": 3553.0
+        },
+        "HFT": {
+          "free": 6588.0,
+          "locked": 0.0,
+          "total": 6588.0
+        },
+        "HOOK": {
+          "free": 5356.0,
+          "locked": 0.0,
+          "total": 5356.0
+        },
+        "MAGIC": {
+          "free": 2830.0,
+          "locked": 0.0,
+          "total": 2830.0
+        },
+        "RPL": {
+          "free": 102.0,
+          "locked": 0.0,
+          "total": 102.0
+        },
+        "RON": {
+          "free": 18466.0,
+          "locked": 0.0,
+          "total": 18466.0
+        },
+        "GNS": {
+          "free": 267.0,
+          "locked": 0.0,
+          "total": 267.0
+        },
+        "SYN": {
+          "free": 4282.0,
+          "locked": 0.0,
+          "total": 4282.0
+        },
+        "LQTY": {
+          "free": 695.0,
+          "locked": 0.0,
+          "total": 695.0
+        },
+        "USTC": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "PROM": {
+          "free": 50.0,
+          "locked": 0.0,
+          "total": 50.0
+        },
+        "QKC": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "ID": {
+          "free": 3304.0,
+          "locked": 0.0,
+          "total": 3304.0
+        },
+        "ARB": {
+          "free": 1141.0,
+          "locked": 0.0,
+          "total": 1141.0
+        },
+        "RDNT": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "ARS": {
+          "free": 18466.0,
+          "locked": 0.0,
+          "total": 18466.0
+        },
+        "EDU": {
+          "free": 3781.0,
+          "locked": 0.0,
+          "total": 3781.0
+        },
+        "SUI": {
+          "free": 147.0,
+          "locked": 0.0,
+          "total": 147.0
+        },
+        "PEPE": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "FLOKI": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "WBETH": {
+          "free": 1.0,
+          "locked": 0.0,
+          "total": 1.0
+        },
+        "MAV": {
+          "free": 8049.0,
+          "locked": 0.0,
+          "total": 8049.0
+        },
+        "PENDLE": {
+          "free": 106.0,
+          "locked": 0.0,
+          "total": 106.0
+        },
+        "ARKM": {
+          "free": 957.0,
+          "locked": 0.0,
+          "total": 957.0
+        },
+        "WLD": {
+          "free": 384.0,
+          "locked": 0.0,
+          "total": 384.0
+        },
+        "FDUSD": {
+          "free": 10000.0,
+          "locked": 0.0,
+          "total": 10000.0
+        },
+        "SEI": {
+          "free": 1737.0,
+          "locked": 0.0,
+          "total": 1737.0
+        },
+        "CYBER": {
+          "free": 319.0,
+          "locked": 0.0,
+          "total": 319.0
+        },
+        "ARK": {
+          "free": 1158.0,
+          "locked": 0.0,
+          "total": 1158.0
+        },
+        "IQ": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "NTRN": {
+          "free": 6227.0,
+          "locked": 0.0,
+          "total": 6227.0
+        },
+        "TIA": {
+          "free": 349.0,
+          "locked": 0.0,
+          "total": 349.0
+        },
+        "MEME": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "ORDI": {
+          "free": 61.0,
+          "locked": 0.0,
+          "total": 61.0
+        },
+        "BEAMX": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "VIC": {
+          "free": 2401.0,
+          "locked": 0.0,
+          "total": 2401.0
+        },
+        "BLUR": {
+          "free": 6510.0,
+          "locked": 0.0,
+          "total": 6510.0
+        },
+        "VANRY": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "AEUR": {
+          "free": 461.0,
+          "locked": 0.0,
+          "total": 461.0
+        },
+        "JTO": {
+          "free": 307.0,
+          "locked": 0.0,
+          "total": 307.0
+        },
+        "1000SATS": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "BONK": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "ACE": {
+          "free": 1082.0,
+          "locked": 0.0,
+          "total": 1082.0
+        },
+        "NFP": {
+          "free": 8335.0,
+          "locked": 0.0,
+          "total": 8335.0
+        },
+        "AI": {
+          "free": 4132.0,
+          "locked": 0.0,
+          "total": 4132.0
+        },
+        "XAI": {
+          "free": 12078.0,
+          "locked": 0.0,
+          "total": 12078.0
+        },
+        "MANTA": {
+          "free": 2716.0,
+          "locked": 0.0,
+          "total": 2716.0
+        },
+        "ALT": {
+          "free": 18138.0,
+          "locked": 0.0,
+          "total": 18138.0
+        },
+        "JUP": {
+          "free": 1107.0,
+          "locked": 0.0,
+          "total": 1107.0
+        },
+        "PYTH": {
+          "free": 3268.0,
+          "locked": 0.0,
+          "total": 3268.0
+        },
+        "RONIN": {
+          "free": 1067.0,
+          "locked": 0.0,
+          "total": 1067.0
+        },
+        "DYM": {
+          "free": 2733.0,
+          "locked": 0.0,
+          "total": 2733.0
+        },
+        "PIXEL": {
+          "free": 17992.0,
+          "locked": 0.0,
+          "total": 17992.0
+        },
+        "STRK": {
+          "free": 3404.0,
+          "locked": 0.0,
+          "total": 3404.0
+        },
+        "PORTAL": {
+          "free": 13481.0,
+          "locked": 0.0,
+          "total": 13481.0
+        },
+        "AXL": {
+          "free": 1727.0,
+          "locked": 0.0,
+          "total": 1727.0
+        },
+        "WIF": {
+          "free": 669.0,
+          "locked": 0.0,
+          "total": 669.0
+        },
+        "METIS": {
+          "free": 37.0,
+          "locked": 0.0,
+          "total": 37.0
+        },
+        "JPY": {
+          "free": 18466.0,
+          "locked": 0.0,
+          "total": 18466.0
+        },
+        "AEVO": {
+          "free": 4361.0,
+          "locked": 0.0,
+          "total": 4361.0
+        },
+        "BOME": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "ETHFI": {
+          "free": 344.0,
+          "locked": 0.0,
+          "total": 344.0
+        },
+        "ENA": {
+          "free": 846.0,
+          "locked": 0.0,
+          "total": 846.0
+        },
+        "W": {
+          "free": 4762.0,
+          "locked": 0.0,
+          "total": 4762.0
+        },
+        "TNSR": {
+          "free": 5027.0,
+          "locked": 0.0,
+          "total": 5027.0
+        },
+        "SAGA": {
+          "free": 2340.0,
+          "locked": 0.0,
+          "total": 2340.0
+        },
+        "MXN": {
+          "free": 18466.0,
+          "locked": 0.0,
+          "total": 18466.0
+        },
+        "TAO": {
+          "free": 1.0,
+          "locked": 0.0,
+          "total": 1.0
+        },
+        "REZ": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "BB": {
+          "free": 2648.0,
+          "locked": 0.0,
+          "total": 2648.0
+        },
+        "NOT": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "COP": {
+          "free": 18466.0,
+          "locked": 0.0,
+          "total": 18466.0
+        },
+        "IO": {
+          "free": 903.0,
+          "locked": 0.0,
+          "total": 903.0
+        },
+        "ZK": {
+          "free": 9401.0,
+          "locked": 0.0,
+          "total": 9401.0
+        },
+        "LISTA": {
+          "free": 1728.0,
+          "locked": 0.0,
+          "total": 1728.0
+        },
+        "ZRO": {
+          "free": 246.0,
+          "locked": 0.0,
+          "total": 246.0
+        },
+        "G": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "BANANA": {
+          "free": 30.0,
+          "locked": 0.0,
+          "total": 30.0
+        },
+        "RENDER": {
+          "free": 143.0,
+          "locked": 0.0,
+          "total": 143.0
+        },
+        "TON": {
+          "free": 182.0,
+          "locked": 0.0,
+          "total": 182.0
+        },
+        "DOGS": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "EURI": {
+          "free": 426.0,
+          "locked": 0.0,
+          "total": 426.0
+        },
+        "POL": {
+          "free": 2144.0,
+          "locked": 0.0,
+          "total": 2144.0
+        },
+        "NEIRO": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "TURBO": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "1MBABYDOGE": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "CATI": {
+          "free": 5903.0,
+          "locked": 0.0,
+          "total": 5903.0
+        },
+        "HMSTR": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "EIGEN": {
+          "free": 337.0,
+          "locked": 0.0,
+          "total": 337.0
+        },
+        "BNSOL": {
+          "free": 2.0,
+          "locked": 0.0,
+          "total": 2.0
+        },
+        "SCR": {
+          "free": 1752.0,
+          "locked": 0.0,
+          "total": 1752.0
+        },
+        "LUMIA": {
+          "free": 1718.0,
+          "locked": 0.0,
+          "total": 1718.0
+        },
+        "KAIA": {
+          "free": 3261.0,
+          "locked": 0.0,
+          "total": 3261.0
+        },
+        "COW": {
+          "free": 1851.0,
+          "locked": 0.0,
+          "total": 1851.0
+        },
+        "CETUS": {
+          "free": 6362.0,
+          "locked": 0.0,
+          "total": 6362.0
+        },
+        "PNUT": {
+          "free": 2366.0,
+          "locked": 0.0,
+          "total": 2366.0
+        },
+        "ACT": {
+          "free": 15239.0,
+          "locked": 0.0,
+          "total": 15239.0
+        },
+        "USUAL": {
+          "free": 9470.0,
+          "locked": 0.0,
+          "total": 9470.0
+        },
+        "THE": {
+          "free": 1181.0,
+          "locked": 0.0,
+          "total": 1181.0
+        },
+        "ACX": {
+          "free": 4343.0,
+          "locked": 0.0,
+          "total": 4343.0
+        },
+        "ORCA": {
+          "free": 251.0,
+          "locked": 0.0,
+          "total": 251.0
+        },
+        "MOVE": {
+          "free": 4669.0,
+          "locked": 0.0,
+          "total": 4669.0
+        },
+        "ME": {
+          "free": 833.0,
+          "locked": 0.0,
+          "total": 833.0
+        },
+        "VELODROME": {
+          "free": 11184.0,
+          "locked": 0.0,
+          "total": 11184.0
+        },
+        "VANA": {
+          "free": 129.0,
+          "locked": 0.0,
+          "total": 129.0
+        },
+        "1000CAT": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "PENGU": {
+          "free": 16493.0,
+          "locked": 0.0,
+          "total": 16493.0
+        },
+        "BIO": {
+          "free": 3588.0,
+          "locked": 0.0,
+          "total": 3588.0
+        },
+        "D": {
+          "free": 16292.0,
+          "locked": 0.0,
+          "total": 16292.0
+        },
+        "AIXBT": {
+          "free": 5294.0,
+          "locked": 0.0,
+          "total": 5294.0
+        },
+        "CGPT": {
+          "free": 6228.0,
+          "locked": 0.0,
+          "total": 6228.0
+        },
+        "COOKIE": {
+          "free": 4552.0,
+          "locked": 0.0,
+          "total": 4552.0
+        },
+        "S": {
+          "free": 1782.0,
+          "locked": 0.0,
+          "total": 1782.0
+        },
+        "SOLV": {
+          "free": 11760.0,
+          "locked": 0.0,
+          "total": 11760.0
+        },
+        "TRUMP": {
+          "free": 66.0,
+          "locked": 0.0,
+          "total": 66.0
+        },
+        "ANIME": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "BERA": {
+          "free": 177.0,
+          "locked": 0.0,
+          "total": 177.0
+        },
+        "1000CHEEMS": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "TST": {
+          "free": 16238.0,
+          "locked": 0.0,
+          "total": 16238.0
+        },
+        "LAYER": {
+          "free": 1212.0,
+          "locked": 0.0,
+          "total": 1212.0
+        },
+        "HEI": {
+          "free": 1503.0,
+          "locked": 0.0,
+          "total": 1503.0
+        },
+        "KAITO": {
+          "free": 349.0,
+          "locked": 0.0,
+          "total": 349.0
+        },
+        "SHELL": {
+          "free": 4269.0,
+          "locked": 0.0,
+          "total": 4269.0
+        },
+        "RED": {
+          "free": 1152.0,
+          "locked": 0.0,
+          "total": 1152.0
+        },
+        "GPS": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "EPIC": {
+          "free": 285.0,
+          "locked": 0.0,
+          "total": 285.0
+        },
+        "BMT": {
+          "free": 8536.0,
+          "locked": 0.0,
+          "total": 8536.0
+        },
+        "FORM": {
+          "free": 482.0,
+          "locked": 0.0,
+          "total": 482.0
+        },
+        "XUSD": {
+          "free": 500.0,
+          "locked": 0.0,
+          "total": 500.0
+        },
+        "CZK": {
+          "free": 18466.0,
+          "locked": 0.0,
+          "total": 18466.0
+        },
+        "NIL": {
+          "free": 1768.0,
+          "locked": 0.0,
+          "total": 1768.0
+        },
+        "PARTI": {
+          "free": 4072.0,
+          "locked": 0.0,
+          "total": 4072.0
+        },
+        "MUBARAK": {
+          "free": 16620.0,
+          "locked": 0.0,
+          "total": 16620.0
+        },
+        "TUT": {
+          "free": 6008.0,
+          "locked": 0.0,
+          "total": 6008.0
+        },
+        "BROCCOLI714": {
+          "free": 18424.0,
+          "locked": 0.0,
+          "total": 18424.0
+        },
+        "BANANAS31": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "GUN": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "BABY": {
+          "free": 9815.0,
+          "locked": 0.0,
+          "total": 9815.0
+        },
+        "ONDO": {
+          "free": 544.0,
+          "locked": 0.0,
+          "total": 544.0
+        },
+        "BIGTIME": {
+          "free": 10274.0,
+          "locked": 0.0,
+          "total": 10274.0
+        },
+        "VIRTUAL": {
+          "free": 459.0,
+          "locked": 0.0,
+          "total": 459.0
+        },
+        "KERNEL": {
+          "free": 2590.0,
+          "locked": 0.0,
+          "total": 2590.0
+        },
+        "WCT": {
+          "free": 1986.0,
+          "locked": 0.0,
+          "total": 1986.0
+        },
+        "HYPER": {
+          "free": 1966.0,
+          "locked": 0.0,
+          "total": 1966.0
+        },
+        "INIT": {
+          "free": 1544.0,
+          "locked": 0.0,
+          "total": 1544.0
+        },
+        "SIGN": {
+          "free": 7590.0,
+          "locked": 0.0,
+          "total": 7590.0
+        },
+        "STO": {
+          "free": 5744.0,
+          "locked": 0.0,
+          "total": 5744.0
+        },
+        "SYRUP": {
+          "free": 1287.0,
+          "locked": 0.0,
+          "total": 1287.0
+        },
+        "KMNO": {
+          "free": 6786.0,
+          "locked": 0.0,
+          "total": 6786.0
+        },
+        "SXT": {
+          "free": 7299.0,
+          "locked": 0.0,
+          "total": 7299.0
+        },
+        "NXPC": {
+          "free": 983.0,
+          "locked": 0.0,
+          "total": 983.0
+        },
+        "AWE": {
+          "free": 4136.0,
+          "locked": 0.0,
+          "total": 4136.0
+        },
+        "HAEDAL": {
+          "free": 3768.0,
+          "locked": 0.0,
+          "total": 3768.0
+        },
+        "USD1": {
+          "free": 500.0,
+          "locked": 0.0,
+          "total": 500.0
+        },
+        "HUMA": {
+          "free": 14801.0,
+          "locked": 0.0,
+          "total": 14801.0
+        },
+        "A": {
+          "free": 1233.0,
+          "locked": 0.0,
+          "total": 1233.0
+        },
+        "SOPH": {
+          "free": 17673.0,
+          "locked": 0.0,
+          "total": 17673.0
+        },
+        "RESOLV": {
+          "free": 4689.0,
+          "locked": 0.0,
+          "total": 4689.0
+        },
+        "HOME": {
+          "free": 16312.0,
+          "locked": 0.0,
+          "total": 16312.0
+        },
+        "SPK": {
+          "free": 9828.0,
+          "locked": 0.0,
+          "total": 9828.0
+        },
+        "NEWT": {
+          "free": 2473.0,
+          "locked": 0.0,
+          "total": 2473.0
+        },
+        "SAHARA": {
+          "free": 6342.0,
+          "locked": 0.0,
+          "total": 6342.0
+        },
+        "LA": {
+          "free": 1389.0,
+          "locked": 0.0,
+          "total": 1389.0
+        },
+        "ERA": {
+          "free": 943.0,
+          "locked": 0.0,
+          "total": 943.0
+        },
+        "C": {
+          "free": 2790.0,
+          "locked": 0.0,
+          "total": 2790.0
+        },
+        "TREE": {
+          "free": 1872.0,
+          "locked": 0.0,
+          "total": 1872.0
+        },
+        "A2Z": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "TOWNS": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "PROVE": {
+          "free": 719.0,
+          "locked": 0.0,
+          "total": 719.0
+        },
+        "BFUSD": {
+          "free": 500.0,
+          "locked": 0.0,
+          "total": 500.0
+        },
+        "PLUME": {
+          "free": 5036.0,
+          "locked": 0.0,
+          "total": 5036.0
+        },
+        "DOLO": {
+          "free": 4856.0,
+          "locked": 0.0,
+          "total": 4856.0
+        },
+        "MITO": {
+          "free": 3495.0,
+          "locked": 0.0,
+          "total": 3495.0
+        },
+        "WLFI": {
+          "free": 2492.0,
+          "locked": 0.0,
+          "total": 2492.0
+        },
+        "SOMI": {
+          "free": 596.0,
+          "locked": 0.0,
+          "total": 596.0
+        },
+        "OPEN": {
+          "free": 1106.0,
+          "locked": 0.0,
+          "total": 1106.0
+        },
+        "USDE": {
+          "free": 499.0,
+          "locked": 0.0,
+          "total": 499.0
+        },
+        "LINEA": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "HOLO": {
+          "free": 2498.0,
+          "locked": 0.0,
+          "total": 2498.0
+        },
+        "PUMP": {
+          "free": 18446.0,
+          "locked": 0.0,
+          "total": 18446.0
+        },
+        "AVNT": {
+          "free": 410.0,
+          "locked": 0.0,
+          "total": 410.0
+        },
+        "ZKC": {
+          "free": 1121.0,
+          "locked": 0.0,
+          "total": 1121.0
+        },
+        "SKY": {
+          "free": 7156.0,
+          "locked": 0.0,
+          "total": 7156.0
+        },
+        "BARD": {
+          "free": 555.0,
+          "locked": 0.0,
+          "total": 555.0
+        },
+        "0G": {
+          "free": 189.0,
+          "locked": 0.0,
+          "total": 189.0
+        },
+        "HEMI": {
+          "free": 5467.0,
+          "locked": 0.0,
+          "total": 5467.0
+        },
+        "XPL": {
+          "free": 479.0,
+          "locked": 0.0,
+          "total": 479.0
+        },
+        "MIRA": {
+          "free": 815.0,
+          "locked": 0.0,
+          "total": 815.0
+        },
+        "FF": {
+          "free": 2549.0,
+          "locked": 0.0,
+          "total": 2549.0
+        },
+        "EDEN": {
+          "free": 1196.0,
+          "locked": 0.0,
+          "total": 1196.0
+        },
+        "NOM": {
+          "free": 11666.0,
+          "locked": 0.0,
+          "total": 11666.0
+        }
+      }
     },
     "/api/v1/ml/status": {
-      "status": "service_unavailable",
-      "message": "Service not initialized"
+      "status": "success",
+      "data": {
+        "model_loaded": true,
+        "model_path": "models/ppo_crypto_trader.zip"
+      }
     },
     "/api/v1/trading/status": {
-      "status": "service_unavailable",
-      "message": "Service not initialized"
+      "status": "success",
+      "data": {
+        "is_trading": true,
+        "current_position": null,
+        "total_trades": 0,
+        "recent_trades": []
+      }
     }
   },
-  "timestamp": 1761238370.797856
+  "timestamp": 1761401766.9129345
 }

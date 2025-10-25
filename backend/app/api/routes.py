@@ -58,6 +58,7 @@ async def binance_service_status():
 class StartTradingRequest(BaseModel):
     symbol: str = "BTCUSDT"
     mode: str = "balanced"  # conservative, balanced, aggressive
+    leverage: int = 10  # Leverage for futures trading
 
 
 class TrainModelRequest(BaseModel):
@@ -69,6 +70,25 @@ class OrderRequest(BaseModel):
     symbol: str
     side: str  # BUY or SELL
     quantity: float
+
+
+class FuturesOrderRequest(BaseModel):
+    symbol: str
+    side: str  # BUY or SELL
+    quantity: float
+    order_type: str = "MARKET"  # MARKET or LIMIT
+    price: Optional[float] = None
+    leverage: Optional[int] = None
+
+
+class LeverageRequest(BaseModel):
+    symbol: str
+    leverage: int
+
+
+class MarginTypeRequest(BaseModel):
+    symbol: str
+    margin_type: str = "CROSSED"  # CROSSED or ISOLATED
 
 
 class TradingStatusResponse(BaseModel):
@@ -152,15 +172,16 @@ async def get_balance():
 
 @router.post("/account/order")
 async def place_order(order_request: OrderRequest):
-    """Place a manual order"""
+    """Place a manual spot order (deprecated - use futures endpoints)"""
     if not binance_service:
         raise HTTPException(status_code=503, detail="Binance service not initialized")
     
     try:
-        result = binance_service.place_market_order(
+        result = binance_service.place_futures_order(
             symbol=order_request.symbol,
             side=order_request.side,
-            quantity=order_request.quantity
+            quantity=order_request.quantity,
+            order_type='MARKET'
         )
         
         if result is None:
@@ -170,6 +191,151 @@ async def place_order(order_request: OrderRequest):
         
     except Exception as e:
         logger.error(f"Error placing order: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Futures Trading Endpoints
+@router.post("/futures/order")
+async def place_futures_order(order_request: FuturesOrderRequest):
+    """Place a futures order with leverage support"""
+    if not binance_service:
+        raise HTTPException(status_code=503, detail="Binance service not initialized")
+    
+    try:
+        # Validate the order first
+        is_valid, message = binance_service.validate_futures_order(
+            symbol=order_request.symbol,
+            side=order_request.side,
+            quantity=order_request.quantity,
+            order_type=order_request.order_type
+        )
+        
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=f"Order validation failed: {message}")
+        
+        result = binance_service.place_futures_order(
+            symbol=order_request.symbol,
+            side=order_request.side,
+            quantity=order_request.quantity,
+            order_type=order_request.order_type,
+            price=order_request.price,
+            leverage=order_request.leverage
+        )
+        
+        if result is None:
+            raise HTTPException(status_code=400, detail="Failed to place futures order")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error placing futures order: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/futures/leverage")
+async def set_leverage(leverage_request: LeverageRequest):
+    """Set leverage for a futures symbol"""
+    if not binance_service:
+        raise HTTPException(status_code=503, detail="Binance service not initialized")
+    
+    try:
+        success = binance_service.set_leverage(
+            symbol=leverage_request.symbol,
+            leverage=leverage_request.leverage
+        )
+        
+        if not success:
+            raise HTTPException(status_code=400, detail="Failed to set leverage")
+        
+        return {
+            "symbol": leverage_request.symbol,
+            "leverage": leverage_request.leverage,
+            "message": "Leverage set successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error setting leverage: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/futures/margin-type")
+async def set_margin_type(margin_request: MarginTypeRequest):
+    """Set margin type for a futures symbol"""
+    if not binance_service:
+        raise HTTPException(status_code=503, detail="Binance service not initialized")
+    
+    try:
+        success = binance_service.set_margin_type(
+            symbol=margin_request.symbol,
+            margin_type=margin_request.margin_type
+        )
+        
+        if not success:
+            raise HTTPException(status_code=400, detail="Failed to set margin type")
+        
+        return {
+            "symbol": margin_request.symbol,
+            "margin_type": margin_request.margin_type,
+            "message": "Margin type set successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error setting margin type: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/futures/positions")
+async def get_positions(symbol: Optional[str] = None):
+    """Get current futures positions"""
+    if not binance_service:
+        raise HTTPException(status_code=503, detail="Binance service not initialized")
+    
+    try:
+        positions = binance_service.get_position_info(symbol)
+        return {
+            "positions": positions,
+            "total_positions": len(positions)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting positions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/futures/close-position/{symbol}")
+async def close_position(symbol: str):
+    """Close all positions for a symbol"""
+    if not binance_service:
+        raise HTTPException(status_code=503, detail="Binance service not initialized")
+    
+    try:
+        result = binance_service.close_position(symbol)
+        
+        if result is None:
+            return {"message": f"No open positions for {symbol}"}
+        
+        return {
+            "message": f"Position closed for {symbol}",
+            "order": result
+        }
+        
+    except Exception as e:
+        logger.error(f"Error closing position: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/futures/portfolio")
+async def get_futures_portfolio():
+    """Get futures portfolio statistics"""
+    if not binance_service:
+        raise HTTPException(status_code=503, detail="Binance service not initialized")
+    
+    try:
+        portfolio = binance_service.get_portfolio_value()
+        return portfolio
+        
+    except Exception as e:
+        logger.error(f"Error getting futures portfolio: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -253,21 +419,24 @@ async def get_prediction(symbol: str):
 # Trading Endpoints
 @router.post("/trading/start")
 async def start_trading(trading_request: StartTradingRequest):
-    """Start automated trading"""
+    """Start automated futures trading"""
     if not trading_service:
         raise HTTPException(status_code=503, detail="Trading service not initialized")
     
     success = trading_service.start_trading(
         symbol=trading_request.symbol,
-        mode=trading_request.mode
+        mode=trading_request.mode,
+        leverage=trading_request.leverage
     )
     
     if not success:
-        raise HTTPException(status_code=400, detail="Failed to start trading")
+        raise HTTPException(status_code=400, detail="Failed to start futures trading")
     
     return {
-        "message": f"Trading started for {trading_request.symbol}",
-        "mode": trading_request.mode
+        "message": f"Futures trading started for {trading_request.symbol}",
+        "mode": trading_request.mode,
+        "leverage": f"{trading_request.leverage}x",
+        "trading_type": "futures"
     }
 
 

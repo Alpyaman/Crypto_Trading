@@ -110,7 +110,8 @@ def load_config() -> AppConfig:
         reload=os.getenv("RELOAD", "true").lower() == "true",
         
         # Binance API
-        binance_testnet=os.getenv("BINANCE_TESTNET", "true").lower() == "true",
+        # Binance API settings
+        binance_testnet=os.getenv("BINANCE_TESTNET", "false").lower() == "true",
         binance_api_key="",  # Will be set below based on testnet mode
         binance_api_secret="",  # Will be set below based on testnet mode
         
@@ -129,12 +130,12 @@ def load_config() -> AppConfig:
         # Use testnet credentials
         config.binance_api_key = os.getenv("BINANCE_TESTNET_API", "")
         config.binance_api_secret = os.getenv("BINANCE_TESTNET_SECRET", "")
-        print("🧪 Using Binance TESTNET credentials")
+        print("🧪 Using Binance TESTNET credentials (Spot trading only)")
     else:
         # Use live credentials
         config.binance_api_key = os.getenv("BINANCE_API_KEY", "")
         config.binance_api_secret = os.getenv("BINANCE_API_SECRET", "")
-        print("⚠️ Using Binance LIVE credentials")
+        print("🚀 Using Binance LIVE credentials (Futures trading enabled)")
     
     return config
 
@@ -175,6 +176,11 @@ def get_trading_symbols() -> Dict[str, Dict[str, Any]]:
             "recommended_modes": ["balanced", "aggressive"]
         }
     }
+
+
+def get_binance_credentials():
+    """Get Binance API credentials"""
+    return config.binance_api_key, config.binance_api_secret
 
 
 # Global configuration instance
