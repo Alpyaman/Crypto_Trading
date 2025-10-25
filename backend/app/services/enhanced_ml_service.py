@@ -16,7 +16,7 @@ from sklearn.ensemble import RandomForestClassifier, IsolationForest
 import ta
 from datetime import datetime
 
-from app.models.trading_env import CryptoTradingEnv
+# Removed unused import: from app.models.trading_env import CryptoTradingEnv
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +51,8 @@ class EnhancedMLService:
             features_df['open_close_ratio'] = df['open'] / df['close']
             features_df['volume_change'] = df['volume'].pct_change()
             
-            # Advanced Moving Averages
-            for period in [5, 10, 20, 50, 100, 200]:
+            # Advanced Moving Averages (including MACD components)
+            for period in [5, 10, 12, 20, 26, 30, 50, 100, 200]:
                 features_df[f'sma_{period}'] = ta.trend.sma_indicator(df['close'], window=period)
                 features_df[f'ema_{period}'] = ta.trend.ema_indicator(df['close'], window=period)
                 features_df[f'price_to_sma_{period}'] = df['close'] / features_df[f'sma_{period}']
@@ -67,6 +67,9 @@ class EnhancedMLService:
             # RSI variations
             for period in [14, 21, 30]:
                 features_df[f'rsi_{period}'] = ta.momentum.rsi(df['close'], window=period)
+            
+            # Add standard RSI alias for compatibility
+            features_df['rsi'] = features_df['rsi_14']  # Standard RSI alias
             
             features_df['rsi_slope'] = features_df['rsi_14'].diff()
             features_df['rsi_divergence'] = self._calculate_divergence(df['close'], features_df['rsi_14'])
@@ -127,8 +130,14 @@ class EnhancedMLService:
             features_df['day_of_week'] = pd.to_datetime(df.index).dayofweek if hasattr(df.index, 'dayofweek') else 0
             features_df['is_weekend'] = (features_df['day_of_week'] >= 5).astype(int)
             
+            # Futures-specific features (simulated for training)
+            features_df['funding_rate'] = np.random.normal(0.0001, 0.0002, len(df))  # Simulated funding rate
+            features_df['long_short_ratio'] = 1 + np.random.normal(0, 0.2, len(df))  # Long/Short ratio
+            features_df['open_interest_change'] = np.random.normal(0.01, 0.05, len(df))  # Open Interest change
+            features_df['liquidation_pressure'] = np.abs(np.random.normal(0, 0.1, len(df)))  # Liquidation pressure
+            
             # Fill NaN values
-            features_df = features_df.fillna(method='ffill').fillna(0)
+            features_df = features_df.ffill().fillna(0)
             
             # Store feature names
             self.feature_names = features_df.columns.tolist()
@@ -187,22 +196,56 @@ class EnhancedMLService:
     def _add_multi_timeframe_features(self, features_df: pd.DataFrame, df: pd.DataFrame) -> pd.DataFrame:
         """Add multi-timeframe analysis features"""
         try:
-            # Simulate higher timeframe by resampling
-            # 4H features from 1H data
-            df_4h = df.resample('4H').agg({
-                'open': 'first',
-                'high': 'max',
-                'low': 'min',
-                'close': 'last',
-                'volume': 'sum'
-            }).fillna(method='ffill')
-            
-            if len(df_4h) > 0:
-                features_df['close_4h'] = df_4h['close'].reindex(df.index, method='ffill')
-                features_df['sma_20_4h'] = ta.trend.sma_indicator(df_4h['close'], window=20).reindex(df.index, method='ffill')
-                features_df['rsi_4h'] = ta.momentum.rsi(df_4h['close'], window=14).reindex(df.index, method='ffill')
+            # Check if we have timestamp column for proper resampling
+            if 'timestamp' in df.columns:
+                # Convert timestamp to datetime if it's not already
+                df_temp = df.copy()
+                df_temp['timestamp'] = pd.to_datetime(df_temp['timestamp'], unit='ms')
+                df_temp.set_index('timestamp', inplace=True)
                 
-                # Trend alignment
+                # Simulate higher timeframe by resampling
+                # 4H features from 1H data
+                df_4h = df_temp.resample('4H').agg({
+                    'open': 'first',
+                    'high': 'max',
+                    'low': 'min',
+                    'close': 'last',
+                    'volume': 'sum'
+                }).ffill()
+                
+                if len(df_4h) > 20:  # Need sufficient data
+                    # Calculate 4H indicators
+                    close_4h = ta.trend.sma_indicator(df_4h['close'], window=20)
+                    rsi_4h = ta.momentum.rsi(df_4h['close'], window=14)
+                    
+                    # Reindex to match original dataframe
+                    try:
+                        features_df['close_4h'] = close_4h.reindex(df.index, method='ffill').fillna(0)
+                        features_df['sma_20_4h'] = close_4h.reindex(df.index, method='ffill').fillna(0)
+                        features_df['rsi_4h'] = rsi_4h.reindex(df.index, method='ffill').fillna(0)
+                    except Exception:
+                        # Fallback for RangeIndex or other index issues
+                        features_df['close_4h'] = df['close'].rolling(4).mean().fillna(0)
+                        features_df['sma_20_4h'] = df['close'].rolling(20).mean().fillna(0)
+                        features_df['rsi_4h'] = ta.momentum.rsi(df['close'], window=14).fillna(50)
+                    
+                    # Trend alignment
+                    features_df['trend_alignment'] = (
+                        (df['close'] > features_df['sma_20_4h']).astype(int)
+                    )
+                else:
+                    # Fallback: use simple rolling averages
+                    features_df['close_4h'] = df['close'].rolling(4).mean().fillna(0)
+                    features_df['sma_20_4h'] = df['close'].rolling(20).mean().fillna(0)
+                    features_df['rsi_4h'] = ta.momentum.rsi(df['close'], window=14).fillna(50)
+                    features_df['trend_alignment'] = (
+                        (df['close'] > features_df['sma_20_4h']).astype(int)
+                    )
+            else:
+                # Fallback approach without timestamp
+                features_df['close_4h'] = df['close'].rolling(4).mean().fillna(0)
+                features_df['sma_20_4h'] = df['close'].rolling(20).mean().fillna(0)
+                features_df['rsi_4h'] = ta.momentum.rsi(df['close'], window=14).fillna(50)
                 features_df['trend_alignment'] = (
                     (df['close'] > features_df['sma_20_4h']).astype(int)
                 )
@@ -211,6 +254,11 @@ class EnhancedMLService:
             
         except Exception as e:
             logger.warning(f"Could not add multi-timeframe features: {e}")
+            # Add default values to maintain feature count consistency
+            features_df['close_4h'] = df['close'].fillna(0)
+            features_df['sma_20_4h'] = df['close'].rolling(20).mean().fillna(0)
+            features_df['rsi_4h'] = 50.0  # Neutral RSI
+            features_df['trend_alignment'] = 0
             return features_df
     
     def _detect_higher_highs(self, high_series: pd.Series, window: int = 20) -> pd.Series:
@@ -313,11 +361,11 @@ class EnhancedMLService:
         try:
             logger.info(f"Training enhanced {algorithm} model for {symbol}")
             
-            # Create enhanced environment
-            env = CryptoTradingEnv(
+            # Create enhanced futures environment
+            from app.models.enhanced_futures_env import EnhancedFuturesEnv
+            env = EnhancedFuturesEnv(
                 symbol=symbol,
                 initial_balance=10000.0,
-                trading_fee=0.0004,  # Futures fee
                 window_size=50  # Larger window for more context
             )
             

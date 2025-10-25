@@ -115,6 +115,15 @@ class EnhancedFuturesEnv(gym.Env):
             logger.error(f"Error loading enhanced data: {e}")
             raise
     
+    def set_data(self, data: pd.DataFrame):
+        """Set data directly for testing purposes"""
+        # Add enhanced indicators to the data
+        enhanced_data = self._add_enhanced_indicators(data.copy())
+        enhanced_data = self._add_futures_features(enhanced_data)
+        self.data = enhanced_data.fillna(0)
+        logger.info(f"Set test data with {len(self.data)} data points")
+        return self.data
+    
     def _add_enhanced_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add comprehensive technical indicators"""
         # Price-based indicators
@@ -122,8 +131,8 @@ class EnhancedFuturesEnv(gym.Env):
         df['volatility'] = df['close'].rolling(20).std()
         df['volatility_ratio'] = df['volatility'] / df['close']
         
-        # Multiple timeframe moving averages
-        for period in [5, 10, 20, 50, 100]:
+        # Multiple timeframe moving averages (including MACD components)
+        for period in [5, 10, 12, 20, 26, 50, 100]:
             df[f'sma_{period}'] = ta.trend.sma_indicator(df['close'], window=period)
             df[f'ema_{period}'] = ta.trend.ema_indicator(df['close'], window=period)
             df[f'price_to_sma_{period}'] = df['close'] / df[f'sma_{period}']
@@ -137,6 +146,7 @@ class EnhancedFuturesEnv(gym.Env):
         # Momentum indicators
         df['rsi_14'] = ta.momentum.rsi(df['close'], window=14)
         df['rsi_21'] = ta.momentum.rsi(df['close'], window=21)
+        df['rsi'] = df['rsi_14']  # Standard RSI alias for compatibility
         df['williams_r'] = ta.momentum.williams_r(df['high'], df['low'], df['close'])
         
         # Volatility indicators
@@ -153,6 +163,21 @@ class EnhancedFuturesEnv(gym.Env):
         df['volume_sma'] = ta.trend.sma_indicator(df['volume'], window=20)
         df['volume_ratio'] = df['volume'] / (df['volume_sma'] + 1e-10)
         df['price_volume'] = df['close'] * df['volume']
+        df['volume_momentum'] = df['volume'].pct_change()
+        
+        # Additional volatility features
+        df['price_volatility'] = df['close'].rolling(20).std()
+        df['volatility_ratio'] = df['volatility'] / df['close']
+        
+        # Support and Resistance levels
+        df['support_level'] = df['low'].rolling(20).min()
+        df['resistance_level'] = df['high'].rolling(20).max()
+        df['support_distance'] = (df['close'] - df['support_level']) / df['close']
+        df['resistance_distance'] = (df['resistance_level'] - df['close']) / df['close']
+        
+        # Additional momentum indicators
+        df['momentum'] = ta.momentum.roc(df['close'], window=10)
+        df['cci'] = ta.trend.cci(df['high'], df['low'], df['close'])
         
         # Trend strength
         df['adx'] = ta.trend.adx(df['high'], df['low'], df['close'])
@@ -161,6 +186,34 @@ class EnhancedFuturesEnv(gym.Env):
         stoch = ta.momentum.StochasticOscillator(df['high'], df['low'], df['close'])
         df['stoch_k'] = stoch.stoch()
         df['stoch_d'] = stoch.stoch_signal()
+        df['stoch_momentum'] = df['stoch_k'].pct_change()  # Now stoch_k exists
+        
+        # Pattern recognition features (simplified)
+        df['doji'] = ((df['close'] - df['open']).abs() / (df['high'] - df['low'] + 1e-10) < 0.1).astype(int)
+        df['hammer'] = ((df['low'] < df[['open', 'close']].min(axis=1)) & 
+                       (df['high'] - df[['open', 'close']].max(axis=1) < 
+                        (df[['open', 'close']].max(axis=1) - df['low']) * 0.3)).astype(int)
+        df['engulfing'] = ((df['close'] > df['open'].shift(1)) & 
+                          (df['open'] < df['close'].shift(1))).astype(int)
+        
+        # Market structure
+        df['higher_highs'] = (df['high'] > df['high'].shift(1)).astype(int)
+        df['lower_lows'] = (df['low'] < df['low'].shift(1)).astype(int)
+        df['trend_strength'] = df['higher_highs'] - df['lower_lows']
+        
+        # Time-based features
+        if hasattr(df, 'timestamp') or 'timestamp' in df.columns:
+            try:
+                timestamps = pd.to_datetime(df['timestamp'] if 'timestamp' in df.columns else df.index)
+                df['hour'] = timestamps.hour
+                df['day_of_week'] = timestamps.dayofweek
+            except Exception:
+                df['hour'] = 0
+                df['day_of_week'] = 0
+        else:
+            df['hour'] = 0
+            df['day_of_week'] = 0
+        df['is_weekend'] = (df['day_of_week'] >= 5).astype(int)
         
         return df
     
