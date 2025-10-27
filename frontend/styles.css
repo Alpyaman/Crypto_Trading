@@ -483,7 +483,28 @@ body {
 }
 
 /* Trading Grid */
-.trading-grid,
+.trading-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 1.5rem;
+}
+
+.trading-controls {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.account-info {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.positions-info {
+    grid-column: 1 / -1;
+    grid-row: 2;
+}
+
 .training-grid,
 .analytics-grid,
 .settings-grid {
@@ -605,6 +626,119 @@ body {
 
 .progress-controls .btn-danger:hover {
     background: linear-gradient(45deg, #dc2626, #b91c1c);
+}
+
+/* Positions Display */
+.positions-info {
+    grid-column: span 2;
+}
+
+.position-count {
+    font-size: 0.875rem;
+    color: #64748b;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+}
+
+.positions-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.position-item {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.position-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(0, 212, 170, 0.3);
+}
+
+.position-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.position-symbol {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #ffffff;
+}
+
+.position-side {
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.position-side.long {
+    background: linear-gradient(45deg, #10b981, #059669);
+    color: white;
+}
+
+.position-side.short {
+    background: linear-gradient(45deg, #ef4444, #dc2626);
+    color: white;
+}
+
+.position-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.position-detail {
+    display: flex;
+    justify-content: space-between;
+}
+
+.position-detail .label {
+    color: #64748b;
+}
+
+.position-detail .value {
+    color: #ffffff;
+    font-weight: 500;
+}
+
+.position-pnl {
+    font-weight: 600;
+}
+
+.position-pnl.positive {
+    color: #10b981;
+}
+
+.position-pnl.negative {
+    color: #ef4444;
+}
+
+.no-positions {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #64748b;
+}
+
+.no-positions i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.no-positions p {
+    font-size: 1rem;
+    margin: 0;
 }
 
 /* Chart Controls */

@@ -110,65 +110,95 @@ class EnhancedTradingService:
     
     async def _enhanced_trading_loop(self, symbol: str, mode: str):
         """Enhanced trading loop with comprehensive market analysis"""
+        loop_iteration = 0
         try:
+            logger.info(f"🔄 Starting enhanced trading loop for {symbol} in {mode} mode")
+            
             while self.is_trading:
+                loop_iteration += 1
+                logger.info(f"📊 Trading Loop #{loop_iteration} - Analyzing market for {symbol}")
+                
                 # Check daily trade limits
                 current_date = datetime.now().date()
                 if current_date != self.last_trade_date:
                     self.daily_trades = 0
                     self.last_trade_date = current_date
+                    logger.info("🗓️ New trading day - Reset daily trade count")
                 
                 if self.daily_trades >= self.risk_config['max_daily_trades']:
-                    logger.info(f"Daily trade limit reached ({self.daily_trades})")
+                    logger.warning(f"⚠️ Daily trade limit reached ({self.daily_trades}/{self.risk_config['max_daily_trades']}) - Waiting 1 hour")
                     await asyncio.sleep(3600)  # Wait 1 hour
                     continue
                 
                 # Get current market data
+                logger.info(f"💰 Fetching current price for {symbol}...")
                 current_price = self.binance_service.get_current_price(symbol)
                 if not current_price:
+                    logger.error(f"❌ Failed to get current price for {symbol} - Retrying in 1 minute")
                     await asyncio.sleep(60)
                     continue
                 
+                logger.info(f"💵 Current {symbol} price: ${current_price:,.2f}")
+                
                 # Get enhanced market data for analysis
+                logger.info("📈 Fetching enhanced market data...")
                 market_data = await self._get_enhanced_market_data(symbol)
                 if market_data is None:
+                    logger.error("❌ Failed to get market data - Retrying in 1 minute")
                     await asyncio.sleep(60)
                     continue
+                
+                logger.info(f"✅ Market data loaded: {len(market_data)} data points")
                 
                 # Update position PnL
                 await self._update_position_status(current_price)
                 
                 # Check risk management conditions
-                if not await self._check_risk_conditions():
+                logger.info("🛡️ Checking risk management conditions...")
+                risk_check = await self._check_risk_conditions()
+                if not risk_check:
+                    logger.warning("⚠️ Risk conditions not met - Waiting 5 minutes")
                     await asyncio.sleep(300)  # Wait 5 minutes if risk conditions not met
                     continue
-                
+
+                logger.info("✅ Risk conditions passed")
+
                 # Get ML prediction with enhanced features
+                logger.info("🤖 Getting ML prediction...")
                 prediction_result = await self._get_enhanced_prediction(market_data)
                 if prediction_result is None:
+                    logger.error("❌ Failed to get ML prediction - Waiting 5 minutes")
                     await asyncio.sleep(300)
                     continue
                 
                 action, confidence, position_size, analysis = prediction_result
+                action_names = {0: 'CLOSE', 1: 'LONG', 2: 'SHORT', 3: 'HOLD'}
+                action_name = action_names.get(action, 'UNKNOWN')
+                
+                logger.info(f"🎯 ML Prediction: {action_name} (confidence: {confidence:.1%})")
+                logger.info(f"📊 Market regime: {analysis.get('market_regime', 'Unknown')}")
+                logger.info(f"📈 Risk score: {analysis.get('risk_score', 0):.3f}")
                 
                 # Execute trading decision
                 if confidence >= self.risk_config['min_confidence']:
+                    logger.info(f"✅ Confidence threshold met ({confidence:.1%} >= {self.risk_config['min_confidence']:.1%})")
                     await self._execute_enhanced_trading_decision(
                         symbol, action, confidence, position_size, current_price, analysis, mode
                     )
                 else:
-                    logger.info(f"Skipping trade due to low confidence: {confidence:.3f}")
+                    logger.info(f"⏸️ Skipping trade - Low confidence: {confidence:.1%} < {self.risk_config['min_confidence']:.1%}")
                 
                 # Log current status
                 await self._log_trading_status(symbol, current_price, analysis)
                 
                 # Wait before next iteration
+                logger.info("⏰ Waiting 5 minutes before next analysis...")
                 await asyncio.sleep(300)  # 5 minutes
                 
         except asyncio.CancelledError:
-            logger.info("Enhanced trading loop cancelled")
+            logger.info("🛑 Enhanced trading loop cancelled")
         except Exception as e:
-            logger.error(f"Error in enhanced trading loop: {e}")
+            logger.error(f"💥 Error in enhanced trading loop: {e}")
             self.is_trading = False
     
     async def _get_enhanced_market_data(self, symbol: str) -> Optional[pd.DataFrame]:
@@ -289,36 +319,56 @@ class EnhancedTradingService:
                                                current_price: float,
                                                analysis: Dict,
                                                mode: str):
-        """Execute enhanced trading decision with risk management"""
+        """Execute enhanced trading decision with comprehensive logging and risk management"""
         try:
-            logger.info(f"Executing enhanced trading decision: action={action}, confidence={confidence:.3f}")
+            action_names = {0: 'CLOSE', 1: 'LONG', 2: 'SHORT', 3: 'HOLD'}
+            action_name = action_names.get(action, 'UNKNOWN')
+            
+            logger.info("🎯 EXECUTING TRADING DECISION")
+            logger.info(f"   Action: {action_name} | Confidence: {confidence:.1%}")
+            logger.info(f"   Position Size: {position_size:.6f} | Price: ${current_price:,.2f}")
+            logger.info(f"   Market Regime: {analysis.get('market_regime', 'Unknown')}")
+            logger.info(f"   Risk Score: {analysis.get('risk_score', 0):.3f}")
             
             # Action mapping: 0=Close, 1=Long, 2=Short, 3=Hold
             if action == 0:  # Close Position
-                await self._close_current_position(symbol, "ML_SIGNAL")
+                if self.current_position['side']:
+                    logger.info(f"🔄 Closing {self.current_position['side']} position")
+                    await self._close_current_position(symbol, "ML_SIGNAL")
+                else:
+                    logger.info("ℹ️ No position to close")
                 
             elif action == 1:  # Long Position
-                if self.current_position['side'] != 'long':
+                if self.current_position['side'] == 'long':
+                    logger.info("ℹ️ Already in LONG position - no action needed")
+                else:
                     # Close any short position first
                     if self.current_position['side'] == 'short':
+                        logger.info("🔄 Switching from SHORT to LONG - closing short first")
                         await self._close_current_position(symbol, "POSITION_SWITCH")
                     
                     # Open long position
+                    logger.info("📈 Opening LONG position")
                     await self._open_long_position(symbol, position_size, current_price, confidence, analysis)
                     
             elif action == 2:  # Short Position
-                if self.current_position['side'] != 'short':
+                if self.current_position['side'] == 'short':
+                    logger.info("ℹ️ Already in SHORT position - no action needed")
+                else:
                     # Close any long position first
                     if self.current_position['side'] == 'long':
+                        logger.info("🔄 Switching from LONG to SHORT - closing long first")
                         await self._close_current_position(symbol, "POSITION_SWITCH")
                     
                     # Open short position
+                    logger.info("📉 Opening SHORT position")
                     await self._open_short_position(symbol, position_size, current_price, confidence, analysis)
             
-            # action == 3 is Hold - no action needed
+            elif action == 3:  # Hold
+                logger.info("⏸️ HOLD signal - no trading action")
             
         except Exception as e:
-            logger.error(f"Error executing enhanced trading decision: {e}")
+            logger.error(f"💥 Error executing enhanced trading decision: {e}")
     
     async def _open_long_position(self, symbol: str, position_size: float, current_price: float, 
                                 confidence: float, analysis: Dict):
@@ -552,43 +602,119 @@ class EnhancedTradingService:
             return (entry_price - current_price) * size
     
     async def _check_risk_conditions(self) -> bool:
-        """Check if trading should continue based on risk conditions"""
+        """Check if trading should continue based on comprehensive risk conditions"""
         try:
             # Get current account balance
             account = self.binance_service.client.futures_account()
             current_balance = float(account['totalWalletBalance'])
+            total_margin = float(account.get('totalPositionInitialMargin', 0))
+            available_balance = current_balance - total_margin
+
+            logger.info("🛡️ RISK MANAGEMENT CHECK")
+            logger.info(f"   Current Balance: ${current_balance:.2f}")
+            logger.info(f"   Available Balance: ${available_balance:.2f}")
+            logger.info(f"   Used Margin: ${total_margin:.2f}")
+            
+            # Initialize peak balance if not set
+            if self.peak_balance is None:
+                self.peak_balance = current_balance
+                logger.info(f"   Peak Balance Initialized: ${self.peak_balance:.2f}")
             
             # Check maximum drawdown
+            current_drawdown = 0.0
             if self.peak_balance and current_balance < self.peak_balance:
-                drawdown = (self.peak_balance - current_balance) / self.peak_balance
-                self.max_drawdown = max(self.max_drawdown, drawdown)
+                current_drawdown = (self.peak_balance - current_balance) / self.peak_balance
+                self.max_drawdown = max(self.max_drawdown, current_drawdown)
                 
-                if drawdown > self.risk_config['max_drawdown']:
-                    logger.warning(f"Maximum drawdown exceeded: {drawdown:.2%}")
+                logger.info(f"   Current Drawdown: {current_drawdown:.1%}")
+                logger.info(f"   Max Drawdown: {self.max_drawdown:.1%}")
+                logger.info(f"   Drawdown Limit: {self.risk_config['max_drawdown']:.1%}")
+                
+                if current_drawdown > self.risk_config['max_drawdown']:
+                    logger.error(f"❌ RISK CHECK FAILED: Maximum drawdown exceeded ({current_drawdown:.1%} > {self.risk_config['max_drawdown']:.1%})")
                     return False
             
             # Update peak balance
             if current_balance > self.peak_balance:
+                old_peak = self.peak_balance
                 self.peak_balance = current_balance
+                logger.info(f"   🎉 New Peak Balance: ${old_peak:.2f} → ${self.peak_balance:.2f}")
             
+            # Check minimum balance for trading
+            min_balance = 10.0  # Minimum $10 to continue trading
+            if available_balance < min_balance:
+                logger.error(f"❌ RISK CHECK FAILED: Insufficient available balance (${available_balance:.2f} < ${min_balance:.2f})")
+                return False
+            
+            # Check daily trade limit
+            if self.daily_trades >= self.risk_config['max_daily_trades']:
+                logger.error(f"❌ RISK CHECK FAILED: Daily trade limit reached ({self.daily_trades}/{self.risk_config['max_daily_trades']})")
+                return False
+
+            logger.info("   ✅ All risk conditions passed")
             return True
             
         except Exception as e:
-            logger.error(f"Error checking risk conditions: {e}")
+            logger.error(f"💥 Error checking risk conditions: {e}")
             return False
     
     async def _log_trading_status(self, symbol: str, current_price: float, analysis: Dict):
-        """Log current trading status"""
+        """Log detailed trading status with comprehensive information"""
         try:
+            # Position information
             position_status = "No position"
+            position_details = ""
             if self.current_position['side']:
                 pnl = self.current_position.get('unrealized_pnl', 0)
-                position_status = f"{self.current_position['side']} {self.current_position['size']:.6f} (PnL: ${pnl:.2f})"
+                entry_price = self.current_position.get('entry_price', 0)
+                position_status = f"{self.current_position['side'].upper()} {self.current_position['size']:.6f}"
+                position_details = f" | Entry: ${entry_price:.2f} | PnL: ${pnl:.2f}"
             
-            logger.info(f"Trading Status - {symbol}: ${current_price:.2f} | "
-                       f"Position: {position_status} | "
-                       f"Regime: {analysis.get('market_regime', 'unknown')} | "
-                       f"Daily Trades: {self.daily_trades}")
+            # Account status
+            try:
+                account = self.binance_service.client.futures_account()
+                balance = float(account['totalWalletBalance'])
+                margin_used = float(account.get('totalPositionInitialMargin', 0))
+                available = balance - margin_used
+            except Exception:
+                balance = available = margin_used = 0.0
+            
+            # Risk metrics
+            volatility = analysis.get('volatility', 0)
+            risk_score = analysis.get('risk_score', 0)
+            trend_strength = analysis.get('trend_strength', 0)
+            
+            # Market analysis summary
+            market_regime = analysis.get('market_regime', 'Unknown')
+            support_resistance = analysis.get('support_resistance', {})
+            support = support_resistance.get('support', 0)
+            resistance = support_resistance.get('resistance', 0)
+
+            logger.info("📊 TRADING STATUS SUMMARY")
+            logger.info(f"   Symbol: {symbol} | Price: ${current_price:,.2f}")
+            logger.info(f"   Position: {position_status}{position_details}")
+            logger.info(f"   Account: ${balance:.2f} (Available: ${available:.2f}, Used: ${margin_used:.2f})")
+            logger.info(f"   Market: {market_regime} | Risk: {risk_score:.3f} | Volatility: {volatility:.3f}")
+            logger.info(f"   Support: ${support:.2f} | Resistance: ${resistance:.2f}")
+            logger.info(f"   Daily Trades: {self.daily_trades}/{self.risk_config['max_daily_trades']}")
+            logger.info(f"   Trading Active: {'YES' if self.is_trading else 'NO'}")
+            
+            # Log why we might not be trading
+            if self.is_trading and not self.current_position['side']:
+                reasons = []
+                if volatility > 0.05:
+                    reasons.append(f"High volatility ({volatility:.3f})")
+                if risk_score > 0.7:
+                    reasons.append(f"High risk ({risk_score:.3f})")
+                if self.daily_trades >= self.risk_config['max_daily_trades']:
+                    reasons.append("Daily limit reached")
+                if trend_strength < 0.3:
+                    reasons.append(f"Weak trend ({trend_strength:.3f})")
+                
+                if reasons:
+                    logger.info(f"   🚫 Not trading due to: {', '.join(reasons)}")
+                else:
+                    logger.info("   ✅ Ready to trade - Waiting for good signal")
             
         except Exception as e:
             logger.error(f"Error logging trading status: {e}")

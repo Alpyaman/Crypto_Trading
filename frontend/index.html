@@ -261,10 +261,17 @@
 
                         <div class="card account-info">
                             <div class="card-header">
-                                <h3>Account Information</h3>
+                                <h3>Futures Account Information</h3>
+                                <button class="btn btn-sm btn-primary" id="refresh-account">
+                                    <i class="fas fa-sync-alt"></i> Refresh
+                                </button>
                             </div>
                             <div class="card-content">
                                 <div class="account-balance">
+                                    <div class="balance-item">
+                                        <span class="label">Total Wallet Balance</span>
+                                        <span class="value" id="total-wallet-balance">$0.00</span>
+                                    </div>
                                     <div class="balance-item">
                                         <span class="label">Available Balance</span>
                                         <span class="value" id="available-balance">$0.00</span>
@@ -276,6 +283,29 @@
                                     <div class="balance-item">
                                         <span class="label">Unrealized PnL</span>
                                         <span class="value" id="unrealized-pnl">$0.00</span>
+                                    </div>
+                                    <div class="balance-item">
+                                        <span class="label">Margin Ratio</span>
+                                        <span class="value" id="margin-ratio">0.00%</span>
+                                    </div>
+                                    <div class="balance-item">
+                                        <span class="label">Position Value</span>
+                                        <span class="value" id="total-position-value">$0.00</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card positions-info">
+                            <div class="card-header">
+                                <h3>Active Positions</h3>
+                                <span class="position-count" id="position-count">0 positions</span>
+                            </div>
+                            <div class="card-content">
+                                <div class="positions-list" id="positions-list">
+                                    <div class="no-positions" id="no-positions">
+                                        <i class="fas fa-chart-line"></i>
+                                        <p>No active positions</p>
                                     </div>
                                 </div>
                             </div>

@@ -18,6 +18,7 @@ router = APIRouter()
 binance_service = None
 ml_service = None
 trading_service = None
+enhanced_trading_service = None
 
 
 # Health check endpoints
@@ -347,6 +348,46 @@ async def get_balance_gui():
             "total": 10000.0,  # Demo values
             "available": 8500.0,
             "locked": 1500.0
+        }
+
+
+@router.get("/api/account/futures")
+async def get_futures_account():
+    """Get comprehensive futures account information for GUI"""
+    if not binance_service:
+        raise HTTPException(status_code=503, detail="Binance service not initialized")
+    
+    try:
+        futures_info = binance_service.get_futures_account_info()
+        return futures_info
+    except Exception as e:
+        logger.error(f"Error in get_futures_account: {e}")
+        # Return demo data
+        return {
+            'account_info': {
+                'total_wallet_balance': 10000.0,
+                'total_unrealized_pnl': 125.50,
+                'total_margin_balance': 10125.50,
+                'available_balance': 8500.0,
+                'used_margin': 1625.50,
+                'free_margin': 8500.0,
+                'margin_ratio': 16.05,
+                'total_position_value': 16255.0
+            },
+            'positions': [
+                {
+                    'symbol': 'BTCUSDT',
+                    'side': 'LONG',
+                    'size': 0.15,
+                    'entry_price': 115200.0,
+                    'mark_price': 115488.60,
+                    'unrealized_pnl': 43.29,
+                    'percentage': 0.25,
+                    'position_value': 17323.29,
+                    'leverage': 10.0
+                }
+            ],
+            'position_count': 1
         }
 
 
@@ -951,46 +992,140 @@ async def execute_trade_gui(trade_data: dict):
 
 @router.post("/api/trading/start")
 async def start_trading_gui(trading_params: dict):
-    """Start automated trading for GUI"""
+    """Start enhanced automated trading for GUI"""
     try:
         symbol = trading_params.get("symbol", "BTCUSDT")
         mode = trading_params.get("mode", "balanced")
         position_size = trading_params.get("position_size", 1000)
+        leverage = trading_params.get("leverage", 10)
         
-        logger.info(f"Starting trading for {symbol} in {mode} mode with ${position_size}")
+        logger.info(f"🚀 Starting enhanced trading for {symbol} in {mode} mode with ${position_size}")
         
-        # In a real implementation, this would start the trading bot
-        # For now, return success with demo response
-        return {
-            "success": True,
-            "message": f"Trading started for {symbol}",
-            "symbol": symbol,
-            "mode": mode,
-            "position_size": position_size,
-            "status": "active"
-        }
+        # Import enhanced services
+        from app.services.enhanced_ml_service import EnhancedMLService
+        from app.services.enhanced_trading_service import EnhancedTradingService
+        
+        # Initialize enhanced ML service if not already done
+        enhanced_ml_service = EnhancedMLService()
+        
+        # Try to load the enhanced model
+        model_loaded = enhanced_ml_service.load_enhanced_model()
+        if not model_loaded:
+            logger.warning("Enhanced model not found, attempting to use basic model")
+            # Try to load basic model as fallback
+            if not enhanced_ml_service.model:
+                return {
+                    "success": False,
+                    "message": "No ML model available. Please train a model first."
+                }
+        
+        # Initialize enhanced trading service
+        global enhanced_trading_service
+        enhanced_trading_service = EnhancedTradingService(binance_service, enhanced_ml_service)
+        
+        # Start enhanced trading
+        success = await enhanced_trading_service.start_enhanced_trading(
+            symbol=symbol,
+            mode=mode,
+            leverage=leverage
+        )
+        
+        if success:
+            logger.info(f"✅ Enhanced trading started successfully for {symbol}")
+            return {
+                "success": True,
+                "message": f"Enhanced trading started for {symbol}",
+                "symbol": symbol,
+                "mode": mode,
+                "position_size": position_size,
+                "leverage": leverage,
+                "status": "active",
+                "service": "enhanced"
+            }
+        else:
+            logger.error(f"❌ Failed to start enhanced trading for {symbol}")
+            return {
+                "success": False,
+                "message": "Failed to start enhanced trading service"
+            }
         
     except Exception as e:
-        logger.error(f"Error starting trading: {e}")
+        logger.error(f"💥 Error starting enhanced trading: {e}")
         return {"success": False, "message": str(e)}
 
 
 @router.post("/api/trading/stop")
 async def stop_trading_gui():
-    """Stop automated trading for GUI"""
+    """Stop enhanced automated trading for GUI"""
     try:
-        logger.info("Stopping automated trading")
+        logger.info("🛑 Stopping enhanced trading")
         
-        # In a real implementation, this would stop the trading bot
+        # Try to stop enhanced trading service if it exists
+        try:
+            global enhanced_trading_service
+            if 'enhanced_trading_service' in globals() and enhanced_trading_service:
+                success = enhanced_trading_service.stop_enhanced_trading()
+                if success:
+                    logger.info("✅ Enhanced trading stopped successfully")
+                    return {
+                        "success": True,
+                        "message": "Enhanced trading stopped successfully",
+                        "status": "stopped"
+                    }
+                else:
+                    logger.warning("⚠️ Enhanced trading service stop returned false")
+            else:
+                logger.info("ℹ️ No active enhanced trading service to stop")
+        except Exception as stop_error:
+            logger.error(f"❌ Error stopping enhanced trading: {stop_error}")
+        
+        # Return success anyway (service might not have been started)
         return {
             "success": True,
-            "message": "Trading stopped successfully",
+            "message": "Trading stopped (no active service found)",
             "status": "stopped"
         }
         
     except Exception as e:
-        logger.error(f"Error stopping trading: {e}")
+        logger.error(f"💥 Error stopping trading: {e}")
         return {"success": False, "message": str(e)}
+
+
+@router.get("/api/trading/status")
+async def get_trading_status_gui():
+    """Get enhanced trading status for GUI"""
+    try:
+        # Check if enhanced trading service exists and is active
+        global enhanced_trading_service
+        if 'enhanced_trading_service' in globals() and enhanced_trading_service:
+            status = enhanced_trading_service.get_enhanced_status()
+            return {
+                "success": True,
+                "is_trading": status.get('is_trading', False),
+                "message": "Enhanced trading service active" if status.get('is_trading', False) else "Enhanced trading service ready",
+                "trading_mode": "enhanced",
+                "symbol": status.get('symbol', 'BTCUSDT'),
+                "status": "active" if status.get('is_trading', False) else "ready",
+                "details": status
+            }
+        else:
+            return {
+                "success": True,
+                "is_trading": False,
+                "message": "Enhanced trading service not started",
+                "trading_mode": "demo",
+                "symbol": "BTCUSDT",
+                "status": "ready"
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting enhanced trading status: {e}")
+        return {
+            "success": False,
+            "is_trading": False,
+            "message": f"Error: {str(e)}",
+            "status": "error"
+        }
 
 
 # Trading Endpoints

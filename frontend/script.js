@@ -208,6 +208,12 @@ class TradingDashboard {
             this.loadInitialData();
         });
 
+        // Add refresh account button event listener
+        document.getElementById('refresh-account')?.addEventListener('click', () => {
+            this.showNotification('Refreshing account data...', 'info');
+            this.updateAccountBalance();
+        });
+
         // Chart controls
         const chartControls = document.querySelectorAll('.chart-controls .btn');
         chartControls.forEach(btn => {
@@ -408,31 +414,191 @@ class TradingDashboard {
 
     async updateAccountBalance() {
         try {
-            console.log('💰 Fetching account balance...');
-            const balance = await this.apiCall('/api/account/balance');
-            console.log('💳 Account balance received:', balance);
+            console.log('💰 Fetching futures account information...');
             
-            // Update header balance if element exists
-            const totalBalanceElement = document.getElementById('totalBalance');
-            const availableBalanceElement = document.getElementById('availableBalance');
-            const lockedBalanceElement = document.getElementById('lockedBalance');
+            // Get comprehensive futures account data
+            const futuresData = await this.apiCall('/api/account/futures');
+            console.log('💳 Futures account data received:', futuresData);
             
-            if (totalBalanceElement) totalBalanceElement.textContent = `$${balance.total?.toFixed(2) || '0.00'}`;
-            if (availableBalanceElement) availableBalanceElement.textContent = `$${balance.available?.toFixed(2) || '0.00'}`;
-            if (lockedBalanceElement) lockedBalanceElement.textContent = `$${balance.locked?.toFixed(2) || '0.00'}`;
+            if (futuresData && futuresData.account_info) {
+                const accountInfo = futuresData.account_info;
+                console.log('📊 Account info details:', accountInfo);
+                
+                // Update account balance display
+                const totalWalletElement = document.getElementById('total-wallet-balance');
+                const availableBalanceElement = document.getElementById('available-balance');
+                const usedMarginElement = document.getElementById('used-margin');
+                const unrealizedPnlElement = document.getElementById('unrealized-pnl');
+                const marginRatioElement = document.getElementById('margin-ratio');
+                const totalPositionValueElement = document.getElementById('total-position-value');
+                
+                console.log('🔍 Elements found:', {
+                    totalWallet: !!totalWalletElement,
+                    available: !!availableBalanceElement,
+                    usedMargin: !!usedMarginElement,
+                    unrealizedPnl: !!unrealizedPnlElement,
+                    marginRatio: !!marginRatioElement,
+                    positionValue: !!totalPositionValueElement
+                });
+                
+                console.log('💰 Values to set:', {
+                    totalWalletBalance: accountInfo.total_wallet_balance,
+                    availableBalance: accountInfo.available_balance,
+                    usedMargin: accountInfo.used_margin,
+                    unrealizedPnl: accountInfo.total_unrealized_pnl,
+                    marginRatio: accountInfo.margin_ratio,
+                    positionValue: accountInfo.total_position_value
+                });
+                
+                if (totalWalletElement) {
+                    const value = `$${accountInfo.total_wallet_balance?.toFixed(2) || '0.00'}`;
+                    totalWalletElement.textContent = value;
+                    console.log('✅ Total wallet balance set to:', value);
+                }
+                if (availableBalanceElement) {
+                    const value = `$${accountInfo.available_balance?.toFixed(2) || '0.00'}`;
+                    availableBalanceElement.textContent = value;
+                    console.log('✅ Available balance set to:', value);
+                }
+                if (usedMarginElement) {
+                    const value = `$${accountInfo.used_margin?.toFixed(2) || '0.00'}`;
+                    usedMarginElement.textContent = value;
+                    console.log('✅ Used margin set to:', value);
+                }
+                
+                // Format unrealized PnL with color
+                if (unrealizedPnlElement) {
+                    const pnl = accountInfo.total_unrealized_pnl || 0;
+                    const value = `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`;
+                    unrealizedPnlElement.textContent = value;
+                    unrealizedPnlElement.className = `value ${pnl >= 0 ? 'positive' : 'negative'}`;
+                    console.log('✅ Unrealized PnL set to:', value);
+                }
+                
+                if (marginRatioElement) {
+                    const value = `${accountInfo.margin_ratio?.toFixed(2) || '0.00'}%`;
+                    marginRatioElement.textContent = value;
+                    console.log('✅ Margin ratio set to:', value);
+                }
+                if (totalPositionValueElement) {
+                    const value = `$${accountInfo.total_position_value?.toFixed(2) || '0.00'}`;
+                    totalPositionValueElement.textContent = value;
+                    console.log('✅ Position value set to:', value);
+                }
+                
+                // Update header balance for compatibility
+                const totalBalanceElement = document.getElementById('totalBalance');
+                const lockedBalanceElement = document.getElementById('lockedBalance');
+                
+                if (totalBalanceElement) {
+                    const value = `$${accountInfo.total_margin_balance?.toFixed(2) || '0.00'}`;
+                    totalBalanceElement.textContent = value;
+                    console.log('✅ Header total balance set to:', value);
+                }
+                if (lockedBalanceElement) {
+                    const value = `$${accountInfo.used_margin?.toFixed(2) || '0.00'}`;
+                    lockedBalanceElement.textContent = value;
+                    console.log('✅ Header locked balance set to:', value);
+                }
+            } else {
+                console.error('❌ No account_info found in futures data');
+            }
             
-            // Update trading page balance display
-            const tradingAvailableElement = document.getElementById('available-balance');
+            // Update positions
+            this.updatePositions(futuresData.positions || []);
+            
+            console.log('✅ Futures account information updated successfully');
+        } catch (error) {
+            console.error('❌ Failed to update futures account information:', error);
+            // Set fallback values
+            const availableBalanceElement = document.getElementById('available-balance');
             const usedMarginElement = document.getElementById('used-margin');
             const unrealizedPnlElement = document.getElementById('unrealized-pnl');
             
-            if (tradingAvailableElement) tradingAvailableElement.textContent = `$${balance.available?.toFixed(2) || '0.00'}`;
-            if (usedMarginElement) usedMarginElement.textContent = `$${balance.locked?.toFixed(2) || '0.00'}`;
-            if (unrealizedPnlElement) unrealizedPnlElement.textContent = `$0.00`; // Demo value
+            if (availableBalanceElement) availableBalanceElement.textContent = 'Error loading';
+            if (usedMarginElement) usedMarginElement.textContent = 'Error loading';
+            if (unrealizedPnlElement) unrealizedPnlElement.textContent = 'Error loading';
+        }
+    }
+
+    updatePositions(positions) {
+        try {
+            console.log('📊 Updating positions display...', positions);
             
-            console.log('✅ Account balance updated successfully');
+            const positionsListElement = document.getElementById('positions-list');
+            const positionCountElement = document.getElementById('position-count');
+            
+            if (!positionsListElement) return;
+            
+            // Update position count
+            if (positionCountElement) {
+                positionCountElement.textContent = `${positions.length} position${positions.length !== 1 ? 's' : ''}`;
+            }
+            
+            // Clear existing positions
+            positionsListElement.innerHTML = '';
+            
+            if (positions.length === 0) {
+                // Show no positions message
+                const noPositionsDiv = document.createElement('div');
+                noPositionsDiv.className = 'no-positions';
+                noPositionsDiv.innerHTML = `
+                    <i class="fas fa-chart-line"></i>
+                    <p>No active positions</p>
+                `;
+                positionsListElement.appendChild(noPositionsDiv);
+            } else {
+                // Display each position
+                positions.forEach(position => {
+                    const positionDiv = document.createElement('div');
+                    positionDiv.className = 'position-item';
+                    
+                    const pnlClass = position.unrealized_pnl >= 0 ? 'positive' : 'negative';
+                    const sideClass = position.side.toLowerCase();
+                    
+                    positionDiv.innerHTML = `
+                        <div class="position-header">
+                            <span class="position-symbol">${position.symbol}</span>
+                            <span class="position-side ${sideClass}">${position.side}</span>
+                        </div>
+                        <div class="position-details">
+                            <div class="position-detail">
+                                <span class="label">Size:</span>
+                                <span class="value">${position.size}</span>
+                            </div>
+                            <div class="position-detail">
+                                <span class="label">Entry Price:</span>
+                                <span class="value">$${position.entry_price?.toFixed(2)}</span>
+                            </div>
+                            <div class="position-detail">
+                                <span class="label">Mark Price:</span>
+                                <span class="value">$${position.mark_price?.toFixed(2)}</span>
+                            </div>
+                            <div class="position-detail">
+                                <span class="label">Unrealized PnL:</span>
+                                <span class="value position-pnl ${pnlClass}">
+                                    ${position.unrealized_pnl >= 0 ? '+' : ''}$${position.unrealized_pnl?.toFixed(2)}
+                                    (${position.percentage >= 0 ? '+' : ''}${position.percentage?.toFixed(2)}%)
+                                </span>
+                            </div>
+                            <div class="position-detail">
+                                <span class="label">Position Value:</span>
+                                <span class="value">$${position.position_value?.toFixed(2)}</span>
+                            </div>
+                            <div class="position-detail">
+                                <span class="label">Leverage:</span>
+                                <span class="value">${position.leverage}x</span>
+                            </div>
+                        </div>
+                    `;
+                    
+                    positionsListElement.appendChild(positionDiv);
+                });
+            }
+            
+            console.log('✅ Positions display updated successfully');
         } catch (error) {
-            console.error('❌ Failed to update account balance:', error);
+            console.error('❌ Error updating positions:', error);
         }
     }
 
