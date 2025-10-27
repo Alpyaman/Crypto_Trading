@@ -175,6 +175,9 @@ class EnhancedTradingService:
                 action_names = {0: 'CLOSE', 1: 'LONG', 2: 'SHORT', 3: 'HOLD'}
                 action_name = action_names.get(action, 'UNKNOWN')
                 
+                # Add current price to analysis for position sizing
+                analysis['current_price'] = current_price
+                
                 logger.info(f"🎯 ML Prediction: {action_name} (confidence: {confidence:.1%})")
                 logger.info(f"📊 Market regime: {analysis.get('market_regime', 'Unknown')}")
                 logger.info(f"📈 Risk score: {analysis.get('risk_score', 0):.3f}")
@@ -451,7 +454,7 @@ class EnhancedTradingService:
             logger.error(f"Error opening short position: {e}")
     
     def _adjust_position_size(self, base_size: float, confidence: float, analysis: Dict) -> float:
-        """Adjust position size based on risk factors"""
+        """Adjust position size based on risk factors with proper minimums for BTCUSDT"""
         try:
             # Start with base size
             adjusted_size = base_size
@@ -475,15 +478,28 @@ class EnhancedTradingService:
             }.get(regime, 0.6)
             adjusted_size *= regime_multiplier
             
-            # Ensure within risk limits
-            max_size = self.risk_config['max_position_size'] * self.peak_balance / self.current_position.get('entry_price', 1)
-            adjusted_size = min(adjusted_size, max_size)
+            # Ensure within risk limits (fix division by zero)
+            current_price = analysis.get('current_price', 115000)  # Fallback price
+            if self.peak_balance and current_price > 0:
+                max_size = self.risk_config['max_position_size'] * self.peak_balance / current_price
+                adjusted_size = min(adjusted_size, max_size)
             
-            return max(0.001, adjusted_size)  # Minimum position size
+            # Ensure minimum position size meets Binance requirements for BTCUSDT
+            # BTCUSDT futures minimum is 0.001 BTC
+            min_btc_size = 0.001
+            adjusted_size = max(min_btc_size, adjusted_size)
+            
+            logger.info(f"💰 Position size adjusted: {base_size:.6f} → {adjusted_size:.6f} BTC")
+            logger.info(f"   Confidence multiplier: {confidence_multiplier:.3f}")
+            logger.info(f"   Volatility adjustment: {volatility_adjustment:.3f}")
+            logger.info(f"   Regime multiplier ({regime}): {regime_multiplier:.3f}")
+            
+            return adjusted_size
             
         except Exception as e:
-            logger.error(f"Error adjusting position size: {e}")
-            return base_size
+            logger.error(f"💥 Error adjusting position size: {e}")
+            # Return safe minimum for BTCUSDT
+            return 0.001
     
     async def _set_position_risk_management(self, symbol: str, entry_price: float, side: str):
         """Set stop loss and take profit orders"""
