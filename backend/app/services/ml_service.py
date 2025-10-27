@@ -6,10 +6,13 @@ import os
 import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.callbacks import CheckpointCallback
 from typing import Optional, Tuple
 import logging
 
 from app.models.trading_env import CryptoTradingEnv
+from app.services.training_state import training_state
+from app.services.training_callbacks import ProgressCallback
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +33,12 @@ class MLService:
         total_timesteps: int = 100000,
         learning_rate: float = 3e-4
     ) -> bool:
-        """Train a new PPO model"""
+        """Train a new PPO model with progress tracking"""
         try:
             logger.info(f"Starting model training for {symbol}")
+            
+            # Initialize training state
+            training_state.start_training(total_timesteps, 'PPO', symbol)
             
             # Create environment
             env = CryptoTradingEnv(
@@ -60,10 +66,21 @@ class MLService:
                 verbose=1
             )
             
-            # Train
-            logger.info("Training model...")
+            # Set up callbacks
+            progress_callback = ProgressCallback(update_frequency=1000, verbose=1)
+            checkpoint_callback = CheckpointCallback(
+                save_freq=10000,
+                save_path='./models/checkpoints/',
+                name_prefix='ppo_crypto'
+            )
+            
+            # Train with progress tracking
+            logger.info("Training model with progress tracking...")
+            training_state.update_progress(0, 0, 0.0, 0.0, 0.0, 0, learning_rate)
+            
             self.model.learn(
                 total_timesteps=total_timesteps,
+                callback=[progress_callback, checkpoint_callback],
                 progress_bar=True
             )
             
@@ -72,10 +89,14 @@ class MLService:
             self.model.save(self.model_path)
             logger.info(f"Model saved to {self.model_path}")
             
+            # Mark training as completed
+            training_state.complete_training(success=True)
+            
             return True
             
         except Exception as e:
             logger.error(f"Error training model: {e}")
+            training_state.complete_training(success=False, error_message=str(e))
             return False
     
     def load_model(self) -> bool:

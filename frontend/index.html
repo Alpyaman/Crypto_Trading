@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Trading AI - Dashboard</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-robot"></i>
+                    <span>Crypto Trading AI</span>
+                </div>
+                <div class="header-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">System Status</span>
+                        <span class="stat-value" id="system-status">
+                            <i class="fas fa-circle status-indicator"></i>
+                            <span id="status-text">Connecting...</span>
+                        </span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Model</span>
+                        <span class="stat-value" id="model-status">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <nav class="nav-menu">
+                    <div class="nav-item active" data-page="dashboard">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Dashboard</span>
+                    </div>
+                    <div class="nav-item" data-page="trading">
+                        <i class="fas fa-exchange-alt"></i>
+                        <span>Trading</span>
+                    </div>
+                    <div class="nav-item" data-page="training">
+                        <i class="fas fa-brain"></i>
+                        <span>ML Training</span>
+                    </div>
+                    <div class="nav-item" data-page="analytics">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Analytics</span>
+                    </div>
+                    <div class="nav-item" data-page="settings">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </div>
+                </nav>
+            </aside>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Dashboard Page -->
+                <div class="page active" id="dashboard-page">
+                    <div class="page-header">
+                        <h1>Trading Dashboard</h1>
+                        <div class="page-actions">
+                            <button class="btn btn-primary" id="refresh-data">
+                                <i class="fas fa-sync-alt"></i>
+                                Refresh
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-grid">
+                        <!-- Market Overview -->
+                        <div class="card market-overview">
+                            <div class="card-header">
+                                <h3>Market Overview</h3>
+                                <div class="symbol-selector">
+                                    <select id="symbol-select">
+                                        <option value="BTCUSDT">BTC/USDT</option>
+                                        <option value="ETHUSDT">ETH/USDT</option>
+                                        <option value="BNBUSDT">BNB/USDT</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="card-content">
+                                <div class="price-display">
+                                    <div class="current-price">
+                                        <span class="price-value" id="current-price">$0.00</span>
+                                        <span class="price-change" id="price-change">+0.00%</span>
+                                    </div>
+                                    <div class="market-info">
+                                        <div class="info-item">
+                                            <span class="label">Market Regime</span>
+                                            <span class="value" id="market-regime">-</span>
+                                        </div>
+                                        <div class="info-item">
+                                            <span class="label">Volatility</span>
+                                            <span class="value" id="volatility">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Technical Indicators -->
+                        <div class="card technical-indicators">
+                            <div class="card-header">
+                                <h3>Technical Indicators</h3>
+                            </div>
+                            <div class="card-content">
+                                <div class="indicators-grid">
+                                    <div class="indicator">
+                                        <span class="indicator-name">RSI (14)</span>
+                                        <span class="indicator-value" id="rsi-value">-</span>
+                                        <div class="indicator-bar">
+                                            <div class="indicator-progress" id="rsi-progress"></div>
+                                        </div>
+                                    </div>
+                                    <div class="indicator">
+                                        <span class="indicator-name">MACD</span>
+                                        <span class="indicator-value" id="macd-value">-</span>
+                                    </div>
+                                    <div class="indicator">
+                                        <span class="indicator-name">BB Position</span>
+                                        <span class="indicator-value" id="bb-position">-</span>
+                                        <div class="indicator-bar">
+                                            <div class="indicator-progress" id="bb-progress"></div>
+                                        </div>
+                                    </div>
+                                    <div class="indicator">
+                                        <span class="indicator-name">Volume Ratio</span>
+                                        <span class="indicator-value" id="volume-ratio">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AI Model Status -->
+                        <div class="card model-status">
+                            <div class="card-header">
+                                <h3>AI Model Status</h3>
+                            </div>
+                            <div class="card-content">
+                                <div class="model-info">
+                                    <div class="model-item">
+                                        <span class="label">Model Type</span>
+                                        <span class="value" id="model-type">Enhanced PPO</span>
+                                    </div>
+                                    <div class="model-item">
+                                        <span class="label">Features</span>
+                                        <span class="value" id="feature-count">86</span>
+                                    </div>
+                                    <div class="model-item">
+                                        <span class="label">Last Training</span>
+                                        <span class="value" id="last-training">-</span>
+                                    </div>
+                                    <div class="model-item">
+                                        <span class="label">Confidence</span>
+                                        <span class="value" id="model-confidence">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Trading Performance -->
+                        <div class="card trading-performance">
+                            <div class="card-header">
+                                <h3>Trading Performance</h3>
+                            </div>
+                            <div class="card-content">
+                                <div class="performance-metrics">
+                                    <div class="metric">
+                                        <span class="metric-label">Total P&L</span>
+                                        <span class="metric-value positive" id="total-pnl">+$0.00</span>
+                                    </div>
+                                    <div class="metric">
+                                        <span class="metric-label">Win Rate</span>
+                                        <span class="metric-value" id="win-rate">0%</span>
+                                    </div>
+                                    <div class="metric">
+                                        <span class="metric-label">Total Trades</span>
+                                        <span class="metric-value" id="total-trades">0</span>
+                                    </div>
+                                    <div class="metric">
+                                        <span class="metric-label">Active Position</span>
+                                        <span class="metric-value" id="active-position">None</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Price Chart -->
+                        <div class="card chart-container">
+                            <div class="card-header">
+                                <h3>Price Chart</h3>
+                                <div class="chart-controls">
+                                    <button class="btn btn-sm active" data-timeframe="1h">1H</button>
+                                    <button class="btn btn-sm" data-timeframe="4h">4H</button>
+                                    <button class="btn btn-sm" data-timeframe="1d">1D</button>
+                                </div>
+                            </div>
+                            <div class="card-content">
+                                <canvas id="price-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trading Page -->
+                <div class="page" id="trading-page">
+                    <div class="page-header">
+                        <h1>Trading Control</h1>
+                    </div>
+
+                    <div class="trading-grid">
+                        <div class="card trading-controls">
+                            <div class="card-header">
+                                <h3>Enhanced Trading</h3>
+                            </div>
+                            <div class="card-content">
+                                <div class="trading-form">
+                                    <div class="form-group">
+                                        <label>Trading Symbol</label>
+                                        <select id="trading-symbol">
+                                            <option value="BTCUSDT">BTC/USDT</option>
+                                            <option value="ETHUSDT">ETH/USDT</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Trading Mode</label>
+                                        <select id="trading-mode">
+                                            <option value="conservative">Conservative</option>
+                                            <option value="balanced" selected>Balanced</option>
+                                            <option value="aggressive">Aggressive</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Position Size</label>
+                                        <input type="number" id="position-size" value="1000" min="10" step="10">
+                                        <span class="input-unit">USDT</span>
+                                    </div>
+                                    <div class="trading-actions">
+                                        <button class="btn btn-success" id="start-trading">
+                                            <i class="fas fa-play"></i>
+                                            Start Trading
+                                        </button>
+                                        <button class="btn btn-danger" id="stop-trading" disabled>
+                                            <i class="fas fa-stop"></i>
+                                            Stop Trading
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card account-info">
+                            <div class="card-header">
+                                <h3>Account Information</h3>
+                            </div>
+                            <div class="card-content">
+                                <div class="account-balance">
+                                    <div class="balance-item">
+                                        <span class="label">Available Balance</span>
+                                        <span class="value" id="available-balance">$0.00</span>
+                                    </div>
+                                    <div class="balance-item">
+                                        <span class="label">Used Margin</span>
+                                        <span class="value" id="used-margin">$0.00</span>
+                                    </div>
+                                    <div class="balance-item">
+                                        <span class="label">Unrealized PnL</span>
+                                        <span class="value" id="unrealized-pnl">$0.00</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Training Page -->
+                <div class="page" id="training-page">
+                    <div class="page-header">
+                        <h1>ML Model Training</h1>
+                    </div>
+
+                    <div class="training-grid">
+                        <div class="card training-controls">
+                            <div class="card-header">
+                                <h3>Enhanced Model Training</h3>
+                            </div>
+                            <div class="card-content">
+                                <div class="training-form">
+                                    <div class="form-group">
+                                        <label>Training Symbol</label>
+                                        <select id="train-symbol">
+                                            <option value="BTCUSDT">BTC/USDT</option>
+                                            <option value="ETHUSDT">ETH/USDT</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Training Steps</label>
+                                        <select id="training-steps">
+                                            <option value="20000">20K (Quick Test)</option>
+                                            <option value="100000">100K (Medium)</option>
+                                            <option value="200000" selected>200K (Full)</option>
+                                            <option value="500000">500K (Extended)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Algorithm</label>
+                                        <select id="algorithm">
+                                            <option value="PPO" selected>PPO (Recommended)</option>
+                                            <option value="A2C">A2C</option>
+                                        </select>
+                                    </div>
+                                    <div class="training-actions">
+                                        <button class="btn btn-primary" id="start-training">
+                                            <i class="fas fa-brain"></i>
+                                            Start Training
+                                        </button>
+                                        <button class="btn btn-secondary" id="test-model">
+                                            <i class="fas fa-flask"></i>
+                                            Test Model
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card training-progress">
+                            <div class="card-header">
+                                <h3>Training Progress</h3>
+                                <div class="progress-controls">
+                                    <button class="btn btn-danger btn-sm" id="stop-training-btn" style="display: none;">
+                                        <i class="fas fa-stop"></i> Stop Training
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-content">
+                                <div class="progress-info">
+                                    <div class="progress-item">
+                                        <span class="label">Status</span>
+                                        <span class="value" id="training-status">Ready</span>
+                                    </div>
+                                    <div class="progress-item">
+                                        <span class="label">Progress</span>
+                                        <span class="value" id="training-progress">0%</span>
+                                    </div>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" id="progress-fill"></div>
+                                    </div>
+                                    
+                                    <!-- Training Details -->
+                                    <div class="training-details" id="training-details" style="display: none;">
+                                        <div class="detail-row">
+                                            <div class="detail-item">
+                                                <span class="label">Algorithm</span>
+                                                <span class="value" id="training-algorithm">-</span>
+                                            </div>
+                                            <div class="detail-item">
+                                                <span class="label">Symbol</span>
+                                                <span class="value" id="training-symbol">-</span>
+                                            </div>
+                                        </div>
+                                        <div class="detail-row">
+                                            <div class="detail-item">
+                                                <span class="label">Time Elapsed</span>
+                                                <span class="value" id="time-elapsed">00:00:00</span>
+                                            </div>
+                                            <div class="detail-item">
+                                                <span class="label">Time Remaining</span>
+                                                <span class="value" id="time-remaining">00:00:00</span>
+                                            </div>
+                                        </div>
+                                        <div class="detail-row">
+                                            <div class="detail-item">
+                                                <span class="label">Timesteps</span>
+                                                <span class="value" id="training-timesteps">0 / 0</span>
+                                            </div>
+                                            <div class="detail-item">
+                                                <span class="label">Episodes</span>
+                                                <span class="value" id="training-episodes">0</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Training Metrics -->
+                                    <div class="training-metrics" id="training-metrics" style="display: none;">
+                                        <div class="metric">
+                                            <span class="metric-label">Loss</span>
+                                            <span class="metric-value" id="training-loss">-</span>
+                                        </div>
+                                        <div class="metric">
+                                            <span class="metric-label">Mean Reward</span>
+                                            <span class="metric-value" id="training-reward">-</span>
+                                        </div>
+                                        <div class="metric">
+                                            <span class="metric-label">Learning Rate</span>
+                                            <span class="metric-value" id="learning-rate">-</span>
+                                        </div>
+                                        <div class="metric">
+                                            <span class="metric-label">Episode Length</span>
+                                            <span class="metric-value" id="episode-length">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytics Page -->
+                <div class="page" id="analytics-page">
+                    <div class="page-header">
+                        <h1>Performance Analytics</h1>
+                    </div>
+                    <div class="analytics-grid">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Coming Soon</h3>
+                            </div>
+                            <div class="card-content">
+                                <p>Advanced analytics and backtesting features will be available here.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Page -->
+                <div class="page" id="settings-page">
+                    <div class="page-header">
+                        <h1>Settings</h1>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="card api-settings">
+                            <div class="card-header">
+                                <h3>API Configuration</h3>
+                            </div>
+                            <div class="card-content">
+                                <div class="setting-item">
+                                    <span class="label">Backend URL</span>
+                                    <input type="text" id="backend-url" value="http://localhost:8000">
+                                </div>
+                                <div class="setting-item">
+                                    <span class="label">Auto Refresh</span>
+                                    <input type="checkbox" id="auto-refresh" checked>
+                                    <span>Enable automatic data refresh</span>
+                                </div>
+                                <div class="setting-item">
+                                    <span class="label">Refresh Interval</span>
+                                    <select id="refresh-interval">
+                                        <option value="5000">5 seconds</option>
+                                        <option value="10000" selected>10 seconds</option>
+                                        <option value="30000">30 seconds</option>
+                                        <option value="60000">1 minute</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

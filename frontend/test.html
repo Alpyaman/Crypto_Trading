@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Trading AI - Simple Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1f2e;
+            color: white;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .status-box {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 10px;
+        }
+        .price {
+            font-size: 2em;
+            color: #00d4aa;
+        }
+        .error {
+            color: #ff4444;
+        }
+        .success {
+            color: #44ff44;
+        }
+        button {
+            background: #00d4aa;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Crypto Trading AI - Test Dashboard</h1>
+        
+        <div class="status-box">
+            <h3>🔧 System Status</h3>
+            <p id="system-status">Loading...</p>
+        </div>
+        
+        <div class="status-box">
+            <h3>💰 Bitcoin Price</h3>
+            <p class="price" id="btc-price">Loading...</p>
+            <p id="price-change">Loading...</p>
+        </div>
+        
+        <div class="status-box">
+            <h3>🤖 ML Model Status</h3>
+            <p id="ml-status">Loading...</p>
+        </div>
+        
+        <div class="status-box">
+            <h3>💳 Account Balance</h3>
+            <p id="account-balance">Loading...</p>
+        </div>
+        
+        <div class="status-box">
+            <h3>📊 Technical Indicators</h3>
+            <p id="indicators">Loading...</p>
+        </div>
+        
+        <div class="status-box">
+            <button onclick="loadAllData()">🔄 Refresh All Data</button>
+            <button onclick="testConnection()">🔍 Test Connection</button>
+        </div>
+        
+        <div class="status-box">
+            <h3>📝 Debug Log</h3>
+            <div id="debug-log" style="background: #000; padding: 10px; height: 200px; overflow-y: scroll; font-family: monospace;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Simple test dashboard
+        function log(message) {
+            const debugLog = document.getElementById('debug-log');
+            const timestamp = new Date().toLocaleTimeString();
+            debugLog.innerHTML += `[${timestamp}] ${message}\n`;
+            debugLog.scrollTop = debugLog.scrollHeight;
+            console.log(message);
+        }
+
+        async function apiCall(endpoint) {
+            try {
+                log(`Making API call to: ${endpoint}`);
+                const response = await fetch(endpoint);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                log(`✅ Success: ${endpoint}`);
+                return data;
+            } catch (error) {
+                log(`❌ Error: ${endpoint} - ${error.message}`);
+                throw error;
+            }
+        }
+
+        async function testConnection() {
+            log('🔍 Testing connection to backend...');
+            try {
+                const response = await fetch('/api/status');
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ Backend connected! Status: ${data.status}`);
+                    document.getElementById('system-status').innerHTML = '<span class="success">✅ Connected</span>';
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                log(`❌ Backend connection failed: ${error.message}`);
+                document.getElementById('system-status').innerHTML = '<span class="error">❌ Connection Failed</span>';
+            }
+        }
+
+        async function loadSystemStatus() {
+            try {
+                const data = await apiCall('/api/status');
+                document.getElementById('system-status').innerHTML = `
+                    <span class="success">✅ ${data.status}</span><br>
+                    Uptime: ${data.uptime}<br>
+                    CPU: ${data.cpu_usage}<br>
+                    Memory: ${data.memory_usage}
+                `;
+            } catch (error) {
+                document.getElementById('system-status').innerHTML = '<span class="error">❌ Failed to load</span>';
+            }
+        }
+
+        async function loadMarketData() {
+            try {
+                const data = await apiCall('/api/market-data/BTCUSDT');
+                document.getElementById('btc-price').textContent = `$${data.price.toLocaleString()}`;
+                document.getElementById('price-change').textContent = `${data.change >= 0 ? '+' : ''}${data.change}%`;
+                document.getElementById('price-change').style.color = data.change >= 0 ? '#44ff44' : '#ff4444';
+            } catch (error) {
+                document.getElementById('btc-price').innerHTML = '<span class="error">❌ Failed to load</span>';
+            }
+        }
+
+        async function loadMLStatus() {
+            try {
+                const data = await apiCall('/api/ml/status');
+                document.getElementById('ml-status').innerHTML = `
+                    Status: ${data.status}<br>
+                    Accuracy: ${data.accuracy}%<br>
+                    Last Trained: ${data.lastTrained}<br>
+                    Confidence: ${data.confidence}%
+                `;
+            } catch (error) {
+                document.getElementById('ml-status').innerHTML = '<span class="error">❌ Failed to load</span>';
+            }
+        }
+
+        async function loadAccountBalance() {
+            try {
+                const data = await apiCall('/api/account/balance');
+                document.getElementById('account-balance').innerHTML = `
+                    Total: $${data.total.toLocaleString()}<br>
+                    Available: $${data.available.toLocaleString()}<br>
+                    Locked: $${data.locked.toLocaleString()}
+                `;
+            } catch (error) {
+                document.getElementById('account-balance').innerHTML = '<span class="error">❌ Failed to load</span>';
+            }
+        }
+
+        async function loadIndicators() {
+            try {
+                const data = await apiCall('/api/indicators/BTCUSDT');
+                document.getElementById('indicators').innerHTML = `
+                    RSI: ${data.rsi.toFixed(2)}<br>
+                    MACD: ${data.macd.toFixed(4)}<br>
+                    SMA20: $${data.sma20.toFixed(2)}<br>
+                    EMA20: $${data.ema20.toFixed(2)}
+                `;
+            } catch (error) {
+                document.getElementById('indicators').innerHTML = '<span class="error">❌ Failed to load</span>';
+            }
+        }
+
+        async function loadAllData() {
+            log('🚀 Loading all dashboard data...');
+            await Promise.allSettled([
+                loadSystemStatus(),
+                loadMarketData(),
+                loadMLStatus(),
+                loadAccountBalance(),
+                loadIndicators()
+            ]);
+            log('✅ All data loading completed');
+        }
+
+        // Auto-load data when page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            log('🌟 Simple test dashboard loaded');
+            testConnection();
+            setTimeout(loadAllData, 1000);
+        });
+
+        // Auto-refresh every 10 seconds
+        setInterval(loadAllData, 10000);
+    </script>
+</body>
+</html>

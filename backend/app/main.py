@@ -4,10 +4,13 @@ Main entry point for the trading application
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import logging
+import os
 
 from app.config import config
 
@@ -80,8 +83,33 @@ class OrderRequest(BaseModel):
 
 
 # Include API routes
-app.include_router(router, prefix="/api/v1")
-app.include_router(enhanced_router, prefix="/api/v1")
+app.include_router(router)
+app.include_router(enhanced_router)
+
+# Mount static files for frontend
+frontend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend")
+logger.info(f"Looking for frontend at: {frontend_path}")
+logger.info(f"Frontend exists: {os.path.exists(frontend_path)}")
+
+if os.path.exists(frontend_path):
+    app.mount("/static", StaticFiles(directory=frontend_path), name="static")
+    logger.info("Frontend static files mounted successfully")
+    
+    # Serve the main GUI page at root
+    @app.get("/")
+    async def serve_gui():
+        """Serve the main GUI page"""
+        gui_file = os.path.join(frontend_path, "index.html")
+        if os.path.exists(gui_file):
+            return FileResponse(gui_file)
+        else:
+            raise HTTPException(status_code=404, detail="GUI not found")
+else:
+    logger.warning(f"Frontend directory not found at {frontend_path}")
+    
+    @app.get("/")
+    async def root():
+        return {"message": "Crypto Trading AI Backend", "frontend": f"Not found at {frontend_path}", "status": "running"}
 
 async def startup_event():
     """Initialize services on startup"""
