@@ -471,52 +471,198 @@ class EnhancedTradingService:
             logger.error(f"Error opening short position: {e}")
     
     def _adjust_position_size(self, base_size: float, confidence: float, analysis: Dict) -> float:
-        """Adjust position size based on risk factors with proper minimums for BTCUSDT"""
+        """Enhanced position sizing with Kelly Criterion, transaction costs, and slippage modeling"""
         try:
-            # Start with base size
-            adjusted_size = base_size
+            current_price = analysis.get('current_price', 115000)  # Fallback price
             
-            # Adjust based on confidence
-            confidence_multiplier = min(confidence * 1.5, 1.0)
+            # 1. Kelly Criterion Position Sizing
+            kelly_size = self._calculate_kelly_position_size(analysis, confidence)
+            
+            # 2. Transaction Cost Modeling
+            transaction_costs = self._calculate_total_transaction_costs(base_size, current_price, analysis)
+            
+            # 3. Slippage Consideration
+            expected_slippage = self._estimate_slippage(base_size, current_price, analysis)
+            
+            # Start with Kelly-optimized size
+            adjusted_size = kelly_size
+            
+            # Adjust based on confidence with diminishing returns
+            confidence_multiplier = min(confidence * 1.2 + 0.3, 1.0)
             adjusted_size *= confidence_multiplier
             
-            # Adjust based on market volatility
+            # Adjust based on market volatility (higher vol = smaller size)
             volatility = analysis.get('volatility', 0.02)
-            volatility_adjustment = max(0.5, 1.0 - (volatility - 0.02) * 10)
+            volatility_adjustment = max(0.3, 1.0 - (volatility - 0.02) * 15)
             adjusted_size *= volatility_adjustment
             
             # Adjust based on market regime
             regime = analysis.get('market_regime', 'unknown')
             regime_multiplier = {
-                'trending': 1.0,
-                'ranging': 0.7,
-                'volatile': 0.5,
-                'unknown': 0.6
-            }.get(regime, 0.6)
+                'trending': 1.0,     # Full size in trends
+                'ranging': 0.6,      # Reduced size in ranges
+                'volatile': 0.4,     # Much smaller in volatile markets
+                'unknown': 0.5       # Conservative for unknown
+            }.get(regime, 0.5)
             adjusted_size *= regime_multiplier
             
-            # Ensure within risk limits (fix division by zero)
-            current_price = analysis.get('current_price', 115000)  # Fallback price
+            # Factor in transaction costs (reduce size if costs are high)
+            cost_adjustment = max(0.7, 1.0 - (transaction_costs * 100))  # Reduce size if costs > 1%
+            adjusted_size *= cost_adjustment
+            
+            # Factor in expected slippage (reduce size if slippage is high)
+            slippage_adjustment = max(0.8, 1.0 - (expected_slippage * 50))  # Reduce if slippage > 2%
+            adjusted_size *= slippage_adjustment
+            
+            # Liquidity-based adjustment
+            liquidity_score = analysis.get('liquidity_score', 0.5)
+            liquidity_adjustment = min(1.0, 0.5 + liquidity_score)
+            adjusted_size *= liquidity_adjustment
+            
+            # Ensure within risk limits
             if self.peak_balance and current_price > 0:
                 max_size = self.risk_config['max_position_size'] * self.peak_balance / current_price
                 adjusted_size = min(adjusted_size, max_size)
             
             # Ensure minimum position size meets Binance requirements for BTCUSDT
-            # BTCUSDT futures minimum is 0.001 BTC
             min_btc_size = 0.001
             adjusted_size = max(min_btc_size, adjusted_size)
             
-            logger.info(f"💰 Position size adjusted: {base_size:.6f} → {adjusted_size:.6f} BTC")
-            logger.info(f"   Confidence multiplier: {confidence_multiplier:.3f}")
-            logger.info(f"   Volatility adjustment: {volatility_adjustment:.3f}")
-            logger.info(f"   Regime multiplier ({regime}): {regime_multiplier:.3f}")
+            # Log detailed position sizing breakdown
+            logger.info("💰 Enhanced Position Sizing:")
+            logger.info(f"   Base Size: {base_size:.6f} → Final: {adjusted_size:.6f} BTC")
+            logger.info(f"   Kelly Optimal: {kelly_size:.6f} BTC")
+            logger.info(f"   Confidence: {confidence:.3f} (mult: {confidence_multiplier:.3f})")
+            logger.info(f"   Volatility: {volatility:.4f} (adj: {volatility_adjustment:.3f})")
+            logger.info(f"   Market Regime: {regime} (mult: {regime_multiplier:.3f})")
+            logger.info(f"   Transaction Costs: {transaction_costs:.4f} (adj: {cost_adjustment:.3f})")
+            logger.info(f"   Expected Slippage: {expected_slippage:.4f} (adj: {slippage_adjustment:.3f})")
+            logger.info(f"   Liquidity Score: {liquidity_score:.3f} (adj: {liquidity_adjustment:.3f})")
             
             return adjusted_size
             
         except Exception as e:
-            logger.error(f"💥 Error adjusting position size: {e}")
-            # Return safe minimum for BTCUSDT
+            logger.error(f"Error in position sizing: {e}")
+            # Fallback to conservative sizing
+            return max(0.001, base_size * 0.5)
+    
+    def _calculate_kelly_position_size(self, analysis: Dict, confidence: float) -> float:
+        """Calculate optimal position size using Kelly Criterion"""
+        try:
+            # Historical performance data (would be better from database)
+            win_rate = analysis.get('historical_win_rate', 0.52)  # Default slightly positive
+            avg_win = analysis.get('avg_win_ratio', 0.08)  # 8% average win
+            avg_loss = analysis.get('avg_loss_ratio', 0.06)  # 6% average loss
+            
+            # Kelly formula: f = (bp - q) / b
+            # where: b = odds (avg_win/avg_loss), p = win probability, q = loss probability
+            if avg_loss > 0:
+                b = avg_win / avg_loss  # Odds ratio
+                p = win_rate  # Win probability
+                q = 1 - p     # Loss probability
+                
+                kelly_fraction = (b * p - q) / b
+                
+                # Apply confidence as a multiplier (higher confidence = closer to Kelly optimal)
+                confidence_factor = 0.3 + (confidence * 0.7)  # 30% to 100% of Kelly
+                kelly_fraction *= confidence_factor
+                
+                # Cap at reasonable limits (never more than 25% of balance)
+                kelly_fraction = max(0.001, min(0.25, kelly_fraction))
+                
+                # Convert to BTC amount
+                if self.peak_balance:
+                    current_price = analysis.get('current_price', 115000)
+                    kelly_size = (kelly_fraction * self.peak_balance) / current_price
+                else:
+                    kelly_size = 0.001  # Minimum
+                
+                logger.info(f"📊 Kelly Criterion: fraction={kelly_fraction:.4f}, size={kelly_size:.6f} BTC")
+                return kelly_size
+            
+            return 0.001  # Minimum fallback
+            
+        except Exception as e:
+            logger.error(f"Error calculating Kelly size: {e}")
             return 0.001
+    
+    def _calculate_total_transaction_costs(self, position_size: float, price: float, analysis: Dict) -> float:
+        """Calculate comprehensive transaction costs including fees, spread, and market impact"""
+        try:
+            # Base trading fee (Binance futures: 0.02% maker, 0.04% taker)
+            trading_fee = 0.0004  # Assume taker fee for market orders
+            
+            # Bid-ask spread cost (typically 0.01-0.03% for BTCUSDT)
+            spread_cost = analysis.get('spread_percentage', 0.0002)  # 0.02% default
+            
+            # Market impact cost (function of order size relative to order book depth)
+            volume_24h = analysis.get('volume_24h', 100000)  # 24h volume in BTC
+            position_value = position_size * price
+            
+            # Market impact increases with order size relative to volume
+            volume_ratio = position_value / (volume_24h * price) if volume_24h > 0 else 0.001
+            market_impact = min(0.001, volume_ratio * 0.1)  # Cap at 0.1%
+            
+            # Funding rate impact (for futures positions held overnight)
+            funding_rate = analysis.get('funding_rate', 0.0001)  # 0.01% typical
+            expected_hold_time = analysis.get('expected_hold_hours', 4)  # 4 hours default
+            funding_cost = abs(funding_rate) * (expected_hold_time / 8)  # 8-hour funding periods
+            
+            # Slippage tolerance (additional buffer)
+            slippage_buffer = 0.0001  # 0.01% buffer
+            
+            total_cost = trading_fee + spread_cost + market_impact + funding_cost + slippage_buffer
+            
+            logger.info("💸 Transaction Cost Breakdown:")
+            logger.info(f"   Trading Fee: {trading_fee:.4f} ({trading_fee*100:.2f}%)")
+            logger.info(f"   Spread Cost: {spread_cost:.4f} ({spread_cost*100:.2f}%)")
+            logger.info(f"   Market Impact: {market_impact:.4f} ({market_impact*100:.2f}%)")
+            logger.info(f"   Funding Cost: {funding_cost:.4f} ({funding_cost*100:.2f}%)")
+            logger.info(f"   Total Cost: {total_cost:.4f} ({total_cost*100:.2f}%)")
+            
+            return total_cost
+            
+        except Exception as e:
+            logger.error(f"Error calculating transaction costs: {e}")
+            return 0.001  # 0.1% fallback
+    
+    def _estimate_slippage(self, position_size: float, price: float, analysis: Dict) -> float:
+        """Estimate expected slippage based on market conditions and order size"""
+        try:
+            # Order book depth analysis
+            order_book_depth = analysis.get('order_book_depth', 1000000)  # USD depth
+            position_value = position_size * price
+            
+            # Slippage increases with order size relative to book depth
+            depth_ratio = position_value / order_book_depth if order_book_depth > 0 else 0.01
+            
+            # Base slippage (minimum expected slippage)
+            base_slippage = 0.0001  # 0.01% minimum
+            
+            # Size-based slippage (square root function for diminishing impact)
+            size_slippage = min(0.002, depth_ratio ** 0.5 * 0.01)  # Cap at 0.2%
+            
+            # Volatility-based slippage (higher volatility = more slippage)
+            volatility = analysis.get('volatility', 0.02)
+            volatility_slippage = min(0.001, (volatility - 0.01) * 0.05) if volatility > 0.01 else 0
+            
+            # Time of day adjustment (higher slippage during low liquidity periods)
+            # This would ideally use real-time liquidity data
+            time_adjustment = 1.0  # Placeholder for time-based liquidity
+            
+            total_slippage = (base_slippage + size_slippage + volatility_slippage) * time_adjustment
+            
+            logger.info("📈 Slippage Estimation:")
+            logger.info(f"   Position Value: ${position_value:,.2f}")
+            logger.info(f"   Book Depth: ${order_book_depth:,.2f}")
+            logger.info(f"   Depth Ratio: {depth_ratio:.6f}")
+            logger.info(f"   Expected Slippage: {total_slippage:.4f} ({total_slippage*100:.2f}%)")
+            
+            return total_slippage
+            
+        except Exception as e:
+            logger.error(f"Error estimating slippage: {e}")
+            return 0.0002  # 0.02% fallback
     
     async def _set_position_risk_management(self, symbol: str, entry_price: float, side: str):
         """Set stop loss and take profit orders"""
