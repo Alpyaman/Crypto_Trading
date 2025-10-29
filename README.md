@@ -1,41 +1,77 @@
 # Crypto Trading AI Application
 
-A sophisticated cryptocurrency trading application powered by machine learning and real-time market data from Binance.
+Advanced cryptocurrency trading bot with machine learning capabilities using PPO reinforcement learning and comprehensive real-time analytics.
 
 ## Features
 
-- 🤖 **AI-Powered Trading**: Uses PPO (Proximal Policy Optimization) reinforcement learning for intelligent trading decisions
-- 📊 **Real-Time Market Data**: Integration with Binance API for live market data and order execution
-- 🎯 **Multiple Trading Modes**: Conservative, Balanced, and Aggressive trading strategies
-- 📈 **Technical Indicators**: RSI, MACD, Bollinger Bands, and moving averages
-- 🔄 **Automated Trading**: Fully automated trading with customizable risk parameters
-- 📱 **REST API**: Complete RESTful API for integration with frontends or external systems
-- 🛡️ **Risk Management**: Built-in position sizing, stop-loss, and take-profit mechanisms
+- 🤖 **Enhanced ML System**: 86-feature PPO algorithm with VecNormalize for stable training
+- 📊 **Real-Time Analytics**: Live market data, futures trading, and comprehensive dashboard
+- 🎯 **Multiple Environments**: Development (testnet), staging, production, and testing modes
+- 📈 **Advanced Charts**: Real-time price visualization with Chart.js integration
+- � **Transparent Trading**: Detailed 5-minute analysis cycles with decision logging
+- 📱 **Modern Web Interface**: Dark-themed dashboard with live progress tracking
+- �️ **Enhanced Security**: Environment-specific configurations and risk management
+
+## Quick Start
+
+### Development Mode (Testnet - Recommended for testing)
+```bash
+cd backend
+start_dev.bat
+```
+
+### Production Mode (Live Trading) ⚠️ **USE WITH CAUTION**
+```bash
+cd backend
+start_prod.bat
+```
+
+### Access Dashboard
+Open your browser to the URL shown in the console (typically `http://localhost:8000`)
+
+## Environment Configuration
+
+The system supports multiple deployment environments:
+
+- **Development** (`.env.development`): Safe testnet trading with debug logging
+- **Production** (`.env.production`): Live trading with enhanced security measures  
+- **Staging** (`.env.staging`): Production-like features on testnet
+- **Test** (`.env.test`): Mock APIs for automated testing
 
 ## Project Structure
 
 ```
 backend/
 ├── app/
-│   ├── __init__.py
-│   ├── main.py              # FastAPI application entry point
+│   ├── main.py                    # FastAPI application entry point
+│   ├── config.py                  # Application configuration
 │   ├── models/
-│   │   ├── __init__.py
-│   │   └── trading_env.py   # RL trading environment
+│   │   ├── enhanced_futures_env.py   # Enhanced 86-feature trading environment
+│   │   └── trading_env.py            # Original trading environment
 │   ├── services/
-│   │   ├── __init__.py
-│   │   ├── binance_service.py   # Binance API integration
-│   │   ├── ml_service.py        # ML model management
-│   │   └── trading_service.py   # Trading orchestration
-│   └── api/
-│       ├── __init__.py
-│       └── routes.py        # API routes
-├── requirements.txt
-├── .env.example
-└── .env
+│   │   ├── binance_service.py        # Binance API integration
+│   │   ├── enhanced_ml_service.py    # Advanced ML with VecNormalize
+│   │   ├── enhanced_trading_service.py # Comprehensive trading with logging
+│   │   ├── ml_service.py             # Original ML service
+│   │   ├── trading_service.py        # Original trading service
+│   │   ├── training_callbacks.py     # Training progress tracking
+│   │   └── training_state.py         # Training state management
+│   ├── api/
+│   │   ├── routes.py                 # Original API routes
+│   │   └── enhanced_routes.py        # Enhanced API with progress tracking
+│   └── utils/
+│       └── env_loader.py             # Environment configuration loader
+├── models/checkpoints/               # Saved ML models and training data
+├── .env.*                           # Environment-specific configurations
+├── start*.bat                       # Environment startup scripts
+└── requirements.txt
+frontend/
+├── index.html                       # Main dashboard interface
+├── script.js                       # Dashboard JavaScript logic
+└── styles.css                      # Modern dark theme styling
 ```
 
-## Installation
+## Installation & Setup
 
 1. **Clone the repository**
    ```bash
@@ -48,6 +84,98 @@ backend/
    python -m venv .venv
    .venv\Scripts\activate  # On Windows
    # source .venv/bin/activate  # On Linux/Mac
+   ```
+
+3. **Install dependencies**
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   ```
+
+4. **Configure your environment**
+   - Choose your environment (development recommended for first-time users)
+   - Configure API credentials in the appropriate `.env.*` file
+   - For testnet (safe): Use `.env.development`
+   - For live trading: Use `.env.production` with real API keys
+
+5. **Start the application**
+   ```bash
+   # For safe testnet trading (recommended)
+   start_dev.bat
+   
+   # For live trading (advanced users only)
+   start_prod.bat
+   ```
+
+6. **Access the dashboard**
+   Open your browser to the URL displayed in the console
+
+## API Credentials Configuration
+
+### Development (Testnet) - Recommended for testing
+Edit `.env.development`:
+```env
+BINANCE_API_KEY=your_testnet_api_key
+BINANCE_SECRET_KEY=your_testnet_secret_key
+USE_TESTNET=true
+```
+
+### Production (Live Trading) ⚠️ **Real Money**
+Edit `.env.production`:
+```env
+BINANCE_API_KEY=your_live_api_key
+BINANCE_SECRET_KEY=your_live_secret_key
+USE_TESTNET=false
+```
+
+## Dashboard Features
+
+### Real-Time Market Analysis
+- Live BTCUSDT price charts with technical indicators
+- Real-time futures account balance display
+- Position tracking and profit/loss monitoring
+
+### ML Training Progress
+- Training step progression with live updates
+- Loss metrics and convergence monitoring  
+- Model performance tracking over time
+
+### Trading Transparency
+- Detailed 5-minute analysis cycles
+- Decision reasoning and risk assessments
+- Comprehensive trading logs with timestamps
+
+### Risk Management
+- Real-time risk calculations
+- Position sizing based on account balance
+- Stop-loss and take-profit automation
+
+## Security & Best Practices
+
+1. **Always test on testnet first** using development mode
+2. **Never commit API credentials** - they're automatically excluded via `.gitignore`
+3. **Start with small amounts** when moving to production
+4. **Monitor trading logs** regularly for unexpected behavior
+5. **Use appropriate risk settings** for your risk tolerance
+
+## Troubleshooting
+
+### Common Issues
+
+**API Connection Errors**
+- Verify API credentials in your `.env` file
+- Check if using correct testnet/mainnet keys
+- Ensure IP address is whitelisted on Binance
+
+**Training Not Starting**
+- Check ML service logs in the dashboard
+- Verify sufficient disk space for model checkpoints
+- Restart the application if training appears stuck
+
+**Dashboard Not Loading**
+- Ensure backend is running (check console for errors)
+- Try refreshing browser or clearing cache
+- Check firewall settings for localhost access
    ```
 
 3. **Install dependencies**
