@@ -36,6 +36,48 @@ body {
     align-items: center;
 }
 
+/* WebSocket Status Indicators */
+.websocket-status-container {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-left: auto;
+    margin-right: 2rem;
+}
+
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    font-size: 0.875rem;
+}
+
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #666;
+    animation: pulse 2s infinite;
+}
+
+.status-indicator.online {
+    background: #4caf50;
+}
+
+.status-indicator.offline {
+    background: #f44336;
+    animation: none;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
 .logo {
     display: flex;
     align-items: center;
@@ -881,4 +923,218 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(0, 212, 170, 0.7);
+}
+
+/* Enhanced Error Handling - Retry Modal Styles */
+.retry-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.3s ease;
+}
+
+.retry-modal-content {
+    background: linear-gradient(135deg, #1a1f2e 0%, #2d3748 100%);
+    padding: 2rem;
+    border-radius: 12px;
+    text-align: center;
+    max-width: 450px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(0, 212, 170, 0.2);
+    animation: slideUp 0.3s ease;
+}
+
+.retry-modal h3 {
+    color: #ffa726;
+    margin-bottom: 1rem;
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+.retry-modal p {
+    color: #b0bec5;
+    margin-bottom: 2rem;
+    line-height: 1.6;
+    font-size: 1rem;
+}
+
+.retry-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.btn-retry,
+.btn-cancel {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.95rem;
+    min-width: 120px;
+}
+
+.btn-retry {
+    background: linear-gradient(135deg, #00d4aa 0%, #00b894 100%);
+    color: white;
+}
+
+.btn-retry:hover {
+    background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 212, 170, 0.4);
+}
+
+.btn-cancel {
+    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+    color: white;
+}
+
+.btn-cancel:hover {
+    background: linear-gradient(135deg, #c0392b 0%, #a93226 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Enhanced Loading States */
+.api-loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.api-loading-content {
+    background: linear-gradient(135deg, #1a1f2e 0%, #2d3748 100%);
+    padding: 2rem;
+    border-radius: 12px;
+    text-align: center;
+    border: 1px solid rgba(0, 212, 170, 0.2);
+    min-width: 200px;
+}
+
+.api-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(0, 212, 170, 0.3);
+    border-top: 3px solid #00d4aa;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Database Dashboard Styles */
+.database-section {
+    background: linear-gradient(135deg, #1a1f2e 0%, #2d3748 100%);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(0, 212, 170, 0.2);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.database-section h3 {
+    color: #00d4aa;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.trades-summary {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: rgba(0, 212, 170, 0.1);
+    border-radius: 8px;
+    border-left: 4px solid #00d4aa;
+}
+
+.trade-item {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    border-left: 4px solid #666;
+    transition: all 0.3s ease;
+}
+
+.trade-item.profit {
+    border-left-color: #4caf50;
+}
+
+.trade-item.loss {
+    border-left-color: #f44336;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.stat-card {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+}
+
+.stat-value.positive {
+    color: #4caf50;
+}
+
+.stat-value.negative {
+    color: #f44336;
+}
+
+.no-data {
+    text-align: center;
+    color: #90a4ae;
+    font-style: italic;
+    padding: 2rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    border: 2px dashed rgba(255, 255, 255, 0.1);
 }

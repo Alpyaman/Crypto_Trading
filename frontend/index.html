@@ -54,6 +54,10 @@
                         <i class="fas fa-chart-bar"></i>
                         <span>Analytics</span>
                     </div>
+                    <div class="nav-item" data-page="database">
+                        <i class="fas fa-database"></i>
+                        <span>Database</span>
+                    </div>
                     <div class="nav-item" data-page="settings">
                         <i class="fas fa-cog"></i>
                         <span>Settings</span>
@@ -380,10 +384,10 @@
                                     </div>
                                     <div class="progress-item">
                                         <span class="label">Progress</span>
-                                        <span class="value" id="training-progress">0%</span>
+                                        <span class="value" id="training-progress-text">0 / 0 steps (0%)</span>
                                     </div>
-                                    <div class="progress-bar">
-                                        <div class="progress-fill" id="progress-fill"></div>
+                                    <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                        <div class="progress-fill" id="training-progress-bar"></div>
                                     </div>
                                     
                                     <!-- Training Details -->
@@ -401,21 +405,21 @@
                                         <div class="detail-row">
                                             <div class="detail-item">
                                                 <span class="label">Time Elapsed</span>
-                                                <span class="value" id="time-elapsed">00:00:00</span>
+                                                <span class="value" id="training-time">00:00:00</span>
                                             </div>
                                             <div class="detail-item">
-                                                <span class="label">Time Remaining</span>
-                                                <span class="value" id="time-remaining">00:00:00</span>
+                                                <span class="label">ETA</span>
+                                                <span class="value" id="training-eta">00:00:00</span>
                                             </div>
                                         </div>
                                         <div class="detail-row">
                                             <div class="detail-item">
-                                                <span class="label">Timesteps</span>
-                                                <span class="value" id="training-timesteps">0 / 0</span>
+                                                <span class="label">Current Loss</span>
+                                                <span class="value" id="current-loss">-</span>
                                             </div>
                                             <div class="detail-item">
-                                                <span class="label">Episodes</span>
-                                                <span class="value" id="training-episodes">0</span>
+                                                <span class="label">Timesteps</span>
+                                                <span class="value" id="training-timesteps">0 / 0</span>
                                             </div>
                                         </div>
                                     </div>
@@ -462,6 +466,22 @@
                     </div>
                 </div>
 
+                <!-- Database Page -->
+                <div class="page" id="database-page">
+                    <div class="page-header">
+                        <h1>Database Overview</h1>
+                        <div class="page-actions">
+                            <button class="btn btn-primary" id="refresh-database">
+                                <i class="fas fa-sync-alt"></i>
+                                Refresh Data
+                            </button>
+                        </div>
+                    </div>
+                    <div id="database-dashboard-container">
+                        <!-- Database dashboard content will be loaded here -->
+                    </div>
+                </div>
+
                 <!-- Settings Page -->
                 <div class="page" id="settings-page">
                     <div class="page-header">
@@ -500,7 +520,9 @@
     </div>
 
     <script src="/static/enhanced-api.js"></script>
-    <script src="/static/script.js"></script>
     <script src="/static/enhanced-dashboard.js"></script>
+    <script src="/static/websocket-dashboard.js"></script>
+    <script src="/static/database-dashboard.js"></script>
+    <script src="/static/script.js"></script>
 </body>
 </html>

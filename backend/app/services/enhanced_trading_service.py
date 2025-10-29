@@ -8,9 +8,11 @@ import numpy as np
 import pandas as pd
 from typing import Dict, Optional, Tuple
 from datetime import datetime
+import uuid
 
 from app.services.binance_service import BinanceService
 from app.services.enhanced_ml_service import EnhancedMLService
+from app.services.database_service import db_service
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,9 @@ class EnhancedTradingService:
             'unrealized_pnl': 0.0,
             'entry_time': None
         }
+        
+        # Database integration
+        self.trading_session_id = None
         
         # Risk management settings
         self.risk_config = {
@@ -402,6 +407,18 @@ class EnhancedTradingService:
                     'confidence': confidence,
                     'analysis': analysis
                 })
+                
+                # Record trade to database
+                trade_data = {
+                    'symbol': symbol,
+                    'side': 'BUY',
+                    'quantity': adjusted_size,
+                    'price': current_price,
+                    'order_id': order_result.get('orderId'),
+                    'position_size': position_size,
+                    'commission': order_result.get('commission', 0.0)
+                }
+                self._record_trade_to_database(trade_data)
                 
                 # Set stop loss and take profit
                 await self._set_position_risk_management(symbol, current_price, 'long')
@@ -780,3 +797,114 @@ class EnhancedTradingService:
         except Exception as e:
             logger.error(f"Error getting enhanced status: {e}")
             return {'error': str(e)}
+    
+    def _record_trade_to_database(self, trade_data: Dict):
+        """Record trade execution to database"""
+        try:
+            # Prepare trade data for database
+            db_trade_data = {
+                'symbol': trade_data.get('symbol'),
+                'side': trade_data.get('side'),
+                'quantity': trade_data.get('quantity'),
+                'price': trade_data.get('price'),
+                'pnl': trade_data.get('pnl', 0.0),
+                'commission': trade_data.get('commission', 0.0),
+                'order_id': trade_data.get('order_id'),
+                'status': trade_data.get('status', 'FILLED'),
+                'trading_mode': getattr(self, 'current_mode', 'enhanced'),
+                'position_size': trade_data.get('position_size'),
+                'model_training_id': getattr(self, 'current_model_training_id', None)
+            }
+            
+            # Save to database
+            trade_record = db_service.create_trade(db_trade_data)
+            logger.info(f"📊 Trade recorded to database: ID {trade_record.id}")
+            
+            # Update trading session statistics if we have an active session
+            if self.trading_session_id:
+                self._update_trading_session_stats()
+                
+        except Exception as e:
+            logger.error(f"Failed to record trade to database: {e}")
+    
+    def _update_trading_session_stats(self):
+        """Update trading session performance statistics"""
+        try:
+            if not self.trading_session_id:
+                return
+                
+            # Calculate session statistics
+            total_trades = len(self.trading_history)
+            winning_trades = len([t for t in self.trading_history if t.get('pnl', 0) > 0])
+            losing_trades = len([t for t in self.trading_history if t.get('pnl', 0) < 0])
+            total_pnl = sum(t.get('pnl', 0) for t in self.trading_history)
+            win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
+            
+            # Update session in database
+            updates = {
+                'total_trades': total_trades,
+                'winning_trades': winning_trades,
+                'losing_trades': losing_trades,
+                'total_pnl': total_pnl,
+                'win_rate': win_rate,
+                'updated_at': datetime.utcnow()
+            }
+            
+            db_service.update_trading_session(self.trading_session_id, updates)
+            logger.debug(f"📈 Trading session stats updated: {total_trades} trades, {win_rate:.1f}% win rate")
+            
+        except Exception as e:
+            logger.error(f"Failed to update trading session stats: {e}")
+    
+    def start_trading_session(self, symbol: str, mode: str, position_size: float, 
+                             stop_loss: Optional[float] = None, take_profit: Optional[float] = None):
+        """Start a new trading session and record it in the database"""
+        try:
+            self.trading_session_id = str(uuid.uuid4())
+            
+            session_data = {
+                'session_id': self.trading_session_id,
+                'symbol': symbol,
+                'trading_mode': mode,
+                'position_size': position_size,
+                'stop_loss': stop_loss,
+                'take_profit': take_profit,
+                'model_version': getattr(self.ml_service, 'model_version', 'unknown'),
+                'status': 'ACTIVE'
+            }
+            
+            # Save to database
+            trading_session = db_service.create_trading_session(session_data)
+            self.current_mode = mode
+            
+            logger.info(f"🚀 Trading session started: {self.trading_session_id}")
+            return trading_session.to_dict()
+            
+        except Exception as e:
+            logger.error(f"Failed to start trading session: {e}")
+            return None
+    
+    def stop_trading_session(self):
+        """Stop the current trading session"""
+        try:
+            if not self.trading_session_id:
+                return None
+                
+            # Final statistics update
+            self._update_trading_session_stats()
+            
+            # Mark session as stopped
+            updates = {
+                'status': 'STOPPED',
+                'ended_at': datetime.utcnow()
+            }
+            
+            session = db_service.update_trading_session(self.trading_session_id, updates)
+            logger.info(f"🛑 Trading session stopped: {self.trading_session_id}")
+            
+            self.trading_session_id = None
+            return session.to_dict() if session else None
+            
+        except Exception as e:
+            logger.error(f"Failed to stop trading session: {e}")
+            return None

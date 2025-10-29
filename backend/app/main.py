@@ -19,8 +19,13 @@ from app.core.error_handling import handle_trading_exception
 from app.services.binance_service import BinanceService
 from app.services.ml_service import MLService
 from app.services.trading_service import TradingService
+# from app.services.enhanced_ml_service import EnhancedMLService
+# from app.services.training_state import TrainingStateManager
 from app.api.routes import router, set_services
 from app.api.enhanced_routes import router as enhanced_router
+from app.api.v1.api import router as api_v1_router, set_ml_services as set_websocket_services
+from app.api.validated_routes import router as validated_router, set_services as set_validated_services
+from app.api.database_routes import router as database_router
 
 # Load environment variables
 load_dotenv()
@@ -87,6 +92,9 @@ class OrderRequest(BaseModel):
 # Include API routes
 app.include_router(router)
 app.include_router(enhanced_router)
+app.include_router(api_v1_router)
+app.include_router(validated_router)
+app.include_router(database_router)
 
 # Add enhanced error handling middleware
 @app.exception_handler(Exception)
@@ -138,6 +146,14 @@ async def startup_event():
     
     logger.info("Starting Crypto Trading AI application...")
     
+    # Initialize database
+    try:
+        from app.models.database import init_database
+        init_database()
+        logger.info("📊 Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+    
     api_key = config.binance_api_key
     api_secret = config.binance_api_secret
     
@@ -152,6 +168,29 @@ async def startup_event():
         binance_service = BinanceService(api_key, api_secret, testnet=config.binance_testnet)
         ml_service = MLService(model_path=config.trading.model_path)
         trading_service = TradingService(binance_service, ml_service)
+        
+        # Initialize enhanced services for WebSocket support
+        try:
+            from app.services.enhanced_ml_service import EnhancedMLService
+            from app.services.enhanced_trading_service import EnhancedTradingService
+            from app.services.training_state import TrainingStateManager
+            
+            enhanced_ml_service = EnhancedMLService(model_path=config.trading.model_path)
+            training_state = TrainingStateManager()
+            enhanced_trading_service = EnhancedTradingService(binance_service, enhanced_ml_service)
+            
+            # Set WebSocket services
+            set_websocket_services(enhanced_ml_service, training_state)
+            logger.info("WebSocket services initialized successfully")
+            
+            # Set validated API services
+            set_validated_services(binance_service, enhanced_ml_service, enhanced_trading_service, training_state)
+            logger.info("Validated API services initialized successfully")
+            
+        except ImportError as e:
+            logger.warning(f"Enhanced services not available: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to initialize enhanced services: {e}")
         
         # Set services in routes module
         set_services(binance_service, ml_service, trading_service)

@@ -226,37 +226,158 @@ class TradingDashboard {
         });
     }
 
-    // API Calls
-    async apiCall(endpoint, method = 'GET', data = null) {
+    // Enhanced API Calls with Retry Logic and Exponential Backoff
+    async apiCall(endpoint, method = 'GET', data = null, retries = 3) {
+        for (let i = 0; i < retries; i++) {
+            try {
+                const options = {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                };
+                
+                if (data) options.body = JSON.stringify(data);
+                
+                console.log(`🔄 API call attempt ${i + 1}/${retries} to: ${this.apiUrl}${endpoint}`);
+                const response = await fetch(`${this.apiUrl}${endpoint}`, options);
+                
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
+                    throw new Error(error.detail || error.message || `HTTP ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log(`✅ API success for ${endpoint}:`, result);
+                return result;
+                
+            } catch (error) {
+                console.warn(`⚠️ API call attempt ${i + 1} failed:`, error.message);
+                
+                if (i === retries - 1) {
+                    // Final attempt failed
+                    console.error(`❌ All ${retries} API attempts failed for ${endpoint}`);
+                    this.showNotification(`API Error: ${error.message}`, 'error');
+                    throw error;
+                }
+                
+                // Exponential backoff: wait 1s, 2s, 4s, etc.
+                const delay = Math.pow(2, i) * 1000;
+                console.log(`⏳ Retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+
+    // Enhanced Error Handling and Categorization
+    handleAPIError(error, context = 'API operation') {
+        let errorMessage = error.message || 'Unknown error occurred';
+        let errorType = 'error';
+        let shouldRetry = false;
+
+        // Categorize error types
+        if (error.message.includes('fetch')) {
+            errorMessage = 'Network connection failed. Please check your internet connection.';
+            errorType = 'warning';
+            shouldRetry = true;
+        } else if (error.message.includes('HTTP 400')) {
+            errorMessage = 'Invalid request data. Please check your input.';
+        } else if (error.message.includes('HTTP 401')) {
+            errorMessage = 'Authentication failed. Please check your credentials.';
+        } else if (error.message.includes('HTTP 403')) {
+            errorMessage = 'Access denied. Insufficient permissions.';
+        } else if (error.message.includes('HTTP 404')) {
+            errorMessage = 'Resource not found. The requested endpoint may not exist.';
+        } else if (error.message.includes('HTTP 422')) {
+            errorMessage = 'Validation error. Please check your input data.';
+        } else if (error.message.includes('HTTP 429')) {
+            errorMessage = 'Rate limit exceeded. Please wait before trying again.';
+            errorType = 'warning';
+            shouldRetry = true;
+        } else if (error.message.includes('HTTP 500')) {
+            errorMessage = 'Server error. Our team has been notified.';
+            errorType = 'warning';
+            shouldRetry = true;
+        } else if (error.message.includes('HTTP 503')) {
+            errorMessage = 'Service temporarily unavailable. Please try again later.';
+            errorType = 'warning';
+            shouldRetry = true;
+        }
+
+        // Log detailed error information
+        console.error(`🚨 ${context} failed:`, {
+            originalError: error.message,
+            processedMessage: errorMessage,
+            shouldRetry,
+            errorType,
+            timestamp: new Date().toISOString()
+        });
+
+        // Show user-friendly notification
+        this.showNotification(`${context}: ${errorMessage}`, errorType);
+
+        return { errorMessage, errorType, shouldRetry };
+    }
+
+    // Enhanced API Call with Smart Error Handling
+    async smartAPICall(endpoint, method = 'GET', data = null, context = 'API operation') {
         try {
-            const options = {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            };
-
-            if (data) {
-                options.body = JSON.stringify(data);
-            }
-
-            console.log(`Making API call to: ${this.apiUrl}${endpoint}`); // Debug log
-            const response = await fetch(`${this.apiUrl}${endpoint}`, options);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const result = await response.json();
-            console.log(`API response for ${endpoint}:`, result); // Debug log
-            return result;
+            return await this.apiCall(endpoint, method, data);
         } catch (error) {
-            console.error('API call failed:', error);
-            console.error('Endpoint:', endpoint);
-            console.error('Method:', method);
-            this.showNotification('API Error: ' + error.message, 'error');
+            const { shouldRetry } = this.handleAPIError(error, context);
+            
+            // For critical operations, offer retry option
+            if (shouldRetry && ['trading', 'training'].some(critical => context.toLowerCase().includes(critical))) {
+                return this.offerRetryOption(endpoint, method, data, context);
+            }
+            
             throw error;
         }
+    }
+
+    // Offer Retry Option for Critical Operations
+    async offerRetryOption(endpoint, method, data, context) {
+        return new Promise((resolve, reject) => {
+            const modal = document.createElement('div');
+            modal.className = 'retry-modal';
+            modal.innerHTML = `
+                <div class="retry-modal-content">
+                    <h3>⚠️ ${context} Failed</h3>
+                    <p>The operation failed but can be retried. Would you like to try again?</p>
+                    <div class="retry-actions">
+                        <button class="btn-retry">🔄 Retry</button>
+                        <button class="btn-cancel">❌ Cancel</button>
+                    </div>
+                </div>
+            `;
+            
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0,0,0,0.7); display: flex; align-items: center;
+                justify-content: center; z-index: 10000;
+            `;
+            
+            const content = modal.querySelector('.retry-modal-content');
+            content.style.cssText = `
+                background: white; padding: 20px; border-radius: 8px; text-align: center;
+                max-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            `;
+            
+            document.body.appendChild(modal);
+            
+            modal.querySelector('.btn-retry').onclick = async () => {
+                document.body.removeChild(modal);
+                try {
+                    const result = await this.apiCall(endpoint, method, data);
+                    resolve(result);
+                } catch (retryError) {
+                    reject(retryError);
+                }
+            };
+            
+            modal.querySelector('.btn-cancel').onclick = () => {
+                document.body.removeChild(modal);
+                reject(new Error('Operation cancelled by user'));
+            };
+        });
     }
 
     // Data Loading
@@ -758,7 +879,7 @@ class TradingDashboard {
                 position_size: parseFloat(positionSize)
             };
 
-            const result = await this.apiCall('/api/trading/start', 'POST', tradeData);
+            const result = await this.smartAPICall('/api/trading/start', 'POST', tradeData, 'Start Trading');
             
             if (result.success) {
                 this.showNotification(`Trading started for ${symbol}`, 'success');
@@ -816,7 +937,7 @@ class TradingDashboard {
                 algorithm: algorithm
             };
 
-            const result = await this.apiCall('/api/ml/train', 'POST', trainingParams);
+            const result = await this.smartAPICall('/api/ml/train', 'POST', trainingParams, 'ML Training');
             
             if (result.success) {
                 this.showNotification('Training started successfully', 'success');
@@ -1125,6 +1246,19 @@ document.head.appendChild(style);
 // Initialize dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.dashboard = new TradingDashboard();
+    
+    // Initialize database dashboard
+    if (typeof DatabaseDashboard !== 'undefined') {
+        window.databaseDashboard = new DatabaseDashboard('database-dashboard-container');
+        
+        // Add refresh handler for database page
+        const refreshDatabaseBtn = document.getElementById('refresh-database');
+        if (refreshDatabaseBtn) {
+            refreshDatabaseBtn.addEventListener('click', () => {
+                window.databaseDashboard.refreshData();
+            });
+        }
+    }
     
     // Load saved settings
     window.dashboard.loadSettings();

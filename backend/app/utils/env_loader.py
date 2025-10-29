@@ -14,7 +14,8 @@ class EnvironmentLoader:
     """Load environment-specific configuration files"""
     
     def __init__(self, base_dir: Optional[Path] = None):
-        self.base_dir = base_dir or Path(__file__).parent
+        # Default to the backend directory (two levels up from utils)
+        self.base_dir = base_dir or Path(__file__).parent.parent.parent
         self.environment = os.getenv('ENVIRONMENT', 'development')
         self.loaded_files = []
         

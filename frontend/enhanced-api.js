@@ -80,6 +80,8 @@ class EnhancedAPIClient {
                 const timeoutId = setTimeout(() => controller.abort(), timeout);
 
                 requestOptions.signal = controller.signal;
+                
+                console.log(`🔄 Enhanced API call attempt ${attempt + 1}/${retries + 1} to: ${this.baseUrl}${endpoint}`);
 
                 const response = await fetch(`${this.baseUrl}${endpoint}`, requestOptions);
                 clearTimeout(timeoutId);
@@ -87,7 +89,7 @@ class EnhancedAPIClient {
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
                     throw new APIError(
-                        errorData.error || `HTTP ${response.status}: ${response.statusText}`,
+                        errorData.detail || errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`,
                         response.status,
                         errorData.error_code || 'HTTP_ERROR',
                         errorData.details
@@ -95,6 +97,7 @@ class EnhancedAPIClient {
                 }
 
                 const data = await response.json();
+                console.log(`✅ Enhanced API success for ${endpoint}:`, data);
                 
                 // Hide loading indicator
                 if (showLoading) {
@@ -105,22 +108,26 @@ class EnhancedAPIClient {
 
             } catch (error) {
                 lastError = error;
+                console.warn(`⚠️ Enhanced API attempt ${attempt + 1} failed:`, error.message);
                 
-                // Don't retry on certain errors
+                // Don't retry on certain errors (client errors)
                 if (error instanceof APIError) {
-                    if (error.status === 401 || error.status === 403 || error.status === 404) {
+                    if (error.status === 401 || error.status === 403 || error.status === 404 || error.status === 422) {
+                        console.error(`❌ Non-retryable error (${error.status}): ${error.message}`);
                         break;
                     }
                 }
 
                 // Don't retry on the last attempt
                 if (attempt === retries) {
+                    console.error(`❌ All ${retries + 1} enhanced API attempts failed for ${endpoint}`);
                     break;
                 }
 
-                // Wait before retrying
-                await this.sleep(this.retryDelay * Math.pow(2, attempt));
-                console.warn(`Retrying ${endpoint} (attempt ${attempt + 2}/${retries + 1})`);
+                // Exponential backoff with jitter
+                const delay = this.retryDelay * Math.pow(2, attempt) + Math.random() * 1000;
+                console.log(`⏳ Enhanced API retrying in ${Math.round(delay)}ms...`);
+                await this.sleep(delay);
             }
         }
 
