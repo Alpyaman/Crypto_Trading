@@ -169,6 +169,15 @@ def validate_config() -> list:
     return env_loader.validate_required_config()
 
 
+def load_credentials() -> dict:
+    """Load Binance API credentials from environment"""
+    return {
+        'BINANCE_API_KEY': os.getenv('BINANCE_API_KEY'),
+        'BINANCE_API_SECRET': os.getenv('BINANCE_API_SECRET'),
+        'BINANCE_TESTNET': env_loader.get_bool('BINANCE_TESTNET', False)
+    }
+
+
 # Auto-load on import
 if __name__ != "__main__":
     env_loader.load_environment()

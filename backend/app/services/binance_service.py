@@ -135,7 +135,17 @@ class BinanceService:
                     if position_amt != 0:  # Only include active positions
                         mark_price = float(position['markPrice'])
                         unrealized_profit = float(position['unRealizedProfit'])
-                        percentage = float(position['percentage'])
+                        entry_price = float(position['entryPrice'])
+                        
+                        # Calculate percentage if not provided
+                        if 'percentage' in position and position['percentage'] is not None:
+                            percentage = float(position['percentage'])
+                        else:
+                            # Calculate percentage manually: (mark_price - entry_price) / entry_price * 100
+                            if entry_price > 0:
+                                percentage = ((mark_price - entry_price) / entry_price) * 100
+                            else:
+                                percentage = 0.0
                         
                         position_value = abs(position_amt * mark_price)
                         total_position_value += position_value
@@ -144,7 +154,7 @@ class BinanceService:
                             'symbol': position['symbol'],
                             'side': 'LONG' if position_amt > 0 else 'SHORT',
                             'size': abs(position_amt),
-                            'entry_price': float(position['entryPrice']),
+                            'entry_price': entry_price,
                             'mark_price': mark_price,
                             'unrealized_pnl': unrealized_profit,
                             'percentage': percentage,
@@ -409,13 +419,26 @@ class BinanceService:
                 for pos in positions:
                     position_amt = float(pos['positionAmt'])
                     if abs(position_amt) > 0:  # Only include positions with size > 0
+                        entry_price = float(pos['entryPrice'])
+                        mark_price = float(pos['markPrice'])
+                        
+                        # Calculate percentage if not provided
+                        if 'percentage' in pos and pos['percentage'] is not None:
+                            percentage = float(pos['percentage'])
+                        else:
+                            # Calculate percentage manually
+                            if entry_price > 0:
+                                percentage = ((mark_price - entry_price) / entry_price) * 100
+                            else:
+                                percentage = 0.0
+                        
                         active_positions.append({
                             'symbol': pos['symbol'],
                             'position_amt': position_amt,
-                            'entry_price': float(pos['entryPrice']),
-                            'mark_price': float(pos['markPrice']),
+                            'entry_price': entry_price,
+                            'mark_price': mark_price,
                             'unrealized_pnl': float(pos['unRealizedProfit']),
-                            'percentage': float(pos['percentage']),
+                            'percentage': percentage,
                             'side': 'LONG' if position_amt > 0 else 'SHORT',
                             'margin_type': pos['marginType'],
                             'leverage': int(pos['leverage'])

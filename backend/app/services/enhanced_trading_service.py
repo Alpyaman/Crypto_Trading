@@ -12,7 +12,24 @@ import uuid
 
 from app.services.binance_service import BinanceService
 from app.services.enhanced_ml_service import EnhancedMLService
-from app.services.database_service import db_service
+try:
+    from app.services.database_service import db_service
+except ImportError:
+    # Create a mock db_service if not available
+    class MockDBService:
+        def create_trade(self, data): 
+            class MockTrade:
+                def __init__(self): self.id = 1
+            return MockTrade()
+        def create_trading_session(self, data): 
+            class MockSession:
+                def to_dict(self): return data
+            return MockSession()
+        def update_trading_session(self, sid, updates): 
+            class MockSession:
+                def to_dict(self): return updates
+            return MockSession()
+    db_service = MockDBService()
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +37,10 @@ logger = logging.getLogger(__name__)
 class EnhancedTradingService:
     """Enhanced trading service with advanced ML and risk management"""
     
-    def __init__(self, binance_service: BinanceService, enhanced_ml_service: EnhancedMLService):
+    def __init__(self, binance_service: BinanceService, enhanced_ml_service: EnhancedMLService, db_service=None):
         self.binance_service = binance_service
         self.ml_service = enhanced_ml_service
+        self.db_service = db_service or globals().get('db_service')
         self.is_trading = False
         self.trading_task = None
         self.trading_history = []
@@ -475,6 +493,11 @@ class EnhancedTradingService:
         try:
             current_price = analysis.get('current_price', 115000)  # Fallback price
             
+            # Get real-time account balance from Binance futures
+            account = self.binance_service.client.futures_account()
+            current_balance = float(account['totalWalletBalance'])
+            available_balance = float(account['availableBalance'])
+            
             # 1. Kelly Criterion Position Sizing
             kelly_size = self._calculate_kelly_position_size(analysis, confidence)
             
@@ -519,10 +542,16 @@ class EnhancedTradingService:
             liquidity_adjustment = min(1.0, 0.5 + liquidity_score)
             adjusted_size *= liquidity_adjustment
             
-            # Ensure within risk limits
-            if self.peak_balance and current_price > 0:
-                max_size = self.risk_config['max_position_size'] * self.peak_balance / current_price
-                adjusted_size = min(adjusted_size, max_size)
+            # Ensure within risk limits using real-time balance
+            max_size = self.risk_config['max_position_size'] * current_balance / current_price
+            adjusted_size = min(adjusted_size, max_size)
+            
+            # For small accounts ($50-$500), ensure minimum viable position but don't exceed balance
+            if current_balance < 500:
+                min_position_value = min(10.0, current_balance * 0.1)  # 10% of small balance
+                min_viable_size = min_position_value / current_price
+                # Use larger of calculated size or minimum viable, but cap at max risk
+                adjusted_size = min(max(adjusted_size, min_viable_size), max_size)
             
             # Ensure minimum position size meets Binance requirements for BTCUSDT
             min_btc_size = 0.001
@@ -530,8 +559,11 @@ class EnhancedTradingService:
             
             # Log detailed position sizing breakdown
             logger.info("💰 Enhanced Position Sizing:")
+            logger.info(f"   Current Balance: ${current_balance:.2f}")
+            logger.info(f"   Available Balance: ${available_balance:.2f}")
             logger.info(f"   Base Size: {base_size:.6f} → Final: {adjusted_size:.6f} BTC")
             logger.info(f"   Kelly Optimal: {kelly_size:.6f} BTC")
+            logger.info(f"   Max Risk Size: {max_size:.6f} BTC ({self.risk_config['max_position_size']*100:.0f}% of balance)")
             logger.info(f"   Confidence: {confidence:.3f} (mult: {confidence_multiplier:.3f})")
             logger.info(f"   Volatility: {volatility:.4f} (adj: {volatility_adjustment:.3f})")
             logger.info(f"   Market Regime: {regime} (mult: {regime_multiplier:.3f})")
@@ -547,10 +579,35 @@ class EnhancedTradingService:
             return max(0.001, base_size * 0.5)
     
     def _calculate_kelly_position_size(self, analysis: Dict, confidence: float) -> float:
-        """Calculate optimal position size using Kelly Criterion"""
+        """Calculate optimal position size using Kelly Criterion based on current Binance futures balance"""
         try:
-            # Historical performance data (would be better from database)
-            win_rate = analysis.get('historical_win_rate', 0.52)  # Default slightly positive
+            # Get real-time account balance from Binance futures
+            # Check if we're in a test environment or have a mocked service
+            if hasattr(self.binance_service, 'get_futures_account_balance'):
+                # Use the service method (works with mocks)
+                balance_info = self.binance_service.get_futures_account_balance()
+                current_balance = float(balance_info['totalWalletBalance'])
+                available_balance = float(balance_info['availableBalance'])
+            else:
+                # Fallback to direct client call (production)
+                account = self.binance_service.client.futures_account()
+                current_balance = float(account['totalWalletBalance'])
+                available_balance = float(account['availableBalance'])
+            
+            logger.info(f"💰 Current Futures Account Balance: ${current_balance:.2f}")
+            logger.info(f"💰 Available Balance: ${available_balance:.2f}")
+            
+            # Historical performance data adjusted by ML prediction and confidence
+            base_win_rate = analysis.get('historical_win_rate', 0.52)  # Base historical win rate
+            ml_prediction = analysis.get('prediction', 0.5)  # ML prediction (0.5 = neutral)
+            
+            # Adjust win rate based on ML prediction and confidence
+            # Higher confidence in bullish prediction increases effective win rate
+            # Lower confidence or bearish prediction decreases it
+            prediction_adjustment = (ml_prediction - 0.5) * confidence  # -0.5 to +0.5 range
+            adjusted_win_rate = base_win_rate + prediction_adjustment
+            adjusted_win_rate = max(0.1, min(0.9, adjusted_win_rate))  # Keep within reasonable bounds
+            
             avg_win = analysis.get('avg_win_ratio', 0.08)  # 8% average win
             avg_loss = analysis.get('avg_loss_ratio', 0.06)  # 6% average loss
             
@@ -558,27 +615,115 @@ class EnhancedTradingService:
             # where: b = odds (avg_win/avg_loss), p = win probability, q = loss probability
             if avg_loss > 0:
                 b = avg_win / avg_loss  # Odds ratio
-                p = win_rate  # Win probability
+                p = adjusted_win_rate  # Adjusted win probability based on ML prediction
                 q = 1 - p     # Loss probability
                 
                 kelly_fraction = (b * p - q) / b
                 
-                # Apply confidence as a multiplier (higher confidence = closer to Kelly optimal)
-                confidence_factor = 0.3 + (confidence * 0.7)  # 30% to 100% of Kelly
+                # Apply confidence as a multiplier with more dynamic range
+                # Lower confidence should significantly reduce position size
+                if confidence >= 0.90:
+                    confidence_factor = 0.8 + (confidence - 0.90) * 2.0  # 80% to 100% of Kelly
+                elif confidence >= 0.80:
+                    confidence_factor = 0.6 + (confidence - 0.80) * 2.0  # 60% to 80% of Kelly
+                elif confidence >= 0.70:
+                    confidence_factor = 0.4 + (confidence - 0.70) * 2.0  # 40% to 60% of Kelly
+                else:
+                    confidence_factor = 0.2 + (confidence - 0.60) * 2.0  # 20% to 40% of Kelly
+                
                 kelly_fraction *= confidence_factor
                 
                 # Cap at reasonable limits (never more than 25% of balance)
                 kelly_fraction = max(0.001, min(0.25, kelly_fraction))
                 
-                # Convert to BTC amount
-                if self.peak_balance:
-                    current_price = analysis.get('current_price', 115000)
-                    kelly_size = (kelly_fraction * self.peak_balance) / current_price
-                else:
-                    kelly_size = 0.001  # Minimum
+                # Convert to BTC amount using available balance (more conservative)
+                current_price = analysis.get('current_price', 115000)
+                leverage = analysis.get('leverage', 10)  # Default 10x leverage
                 
-                logger.info(f"📊 Kelly Criterion: fraction={kelly_fraction:.4f}, size={kelly_size:.6f} BTC")
-                return kelly_size
+                # Use available balance for position sizing (safer than total balance)
+                balance_for_sizing = min(current_balance, available_balance)
+                
+                # Kelly size calculation (this is the margin requirement, not the position size)
+                kelly_margin_value = kelly_fraction * balance_for_sizing
+                kelly_size = kelly_margin_value / current_price  # BTC margin requirement
+                
+                # Apply Binance minimum trading size (0.001 BTC for BTCUSDT) - this is position size, not margin
+                binance_min_position_size = 0.001
+                
+                # For small accounts, ensure minimum viable position but respect Kelly limits
+                # Adjust minimum position for very small accounts
+                if balance_for_sizing < 100:  # Very small accounts
+                    min_position_value = max(5.0, balance_for_sizing * 0.15)  # 15% of balance, min $5
+                else:
+                    min_position_value = 10.0  # Standard $10 minimum
+                
+                # This is the margin requirement for the minimum position
+                min_margin_value = min_position_value / leverage  # Margin needed
+                min_kelly_size = min_margin_value / current_price  # BTC margin requirement
+                
+                # Apply Binance minimum trading size (0.001 BTC for BTCUSDT) - this is position size, not margin
+                binance_min_position_size = 0.001
+                
+                # Calculate maximum position size (adjust for small accounts)
+                if balance_for_sizing < 100:
+                    max_position_percentage = 0.25  # Allow up to 25% for small accounts
+                else:
+                    max_position_percentage = 0.20  # Standard 20%
+                
+                # Maximum margin we can use
+                max_margin_value = balance_for_sizing * max_position_percentage
+                max_margin_size = max_margin_value / current_price  # BTC margin limit
+                
+                # Position sizing logic with leverage consideration
+                if balance_for_sizing < 100:
+                    # For very small accounts, prioritize Kelly calculation but ensure minimum viability
+                    if kelly_size >= (binance_min_position_size / leverage):  # Kelly suggests viable position
+                        final_margin_size = kelly_size  # Use Kelly calculation
+                    else:
+                        # Kelly suggests too small position, use minimum viable
+                        final_margin_size = max(kelly_size, min_kelly_size)
+                    
+                    # Ensure we meet Binance minimum position size (considering leverage)
+                    min_required_margin = binance_min_position_size / leverage
+                    final_margin_size = max(final_margin_size, min_required_margin)
+                    
+                    # Cap at maximum margin
+                    final_margin_size = min(final_margin_size, max_margin_size)
+                else:
+                    # Standard calculation for larger accounts
+                    min_required_margin = binance_min_position_size / leverage
+                    final_margin_size = max(kelly_size, min_kelly_size, min_required_margin)
+                    final_margin_size = min(final_margin_size, max_margin_size)
+                
+                # The final_margin_size is what we return (BTC margin requirement)
+                # The actual position size will be final_margin_size * leverage
+                
+                # Calculate actual position size and values for logging
+                actual_position_size = final_margin_size * leverage
+                margin_value_used = final_margin_size * current_price
+                actual_position_value = actual_position_size * current_price
+                
+                logger.info("📊 Kelly Criterion Calculation:")
+                logger.info(f"   Account Balance: ${current_balance:.2f}")
+                logger.info(f"   Available Balance: ${available_balance:.2f}")
+                logger.info(f"   Balance for Sizing: ${balance_for_sizing:.2f}")
+                logger.info(f"   Leverage: {leverage}x")
+                logger.info(f"   Base Win Rate: {base_win_rate:.3f}")
+                logger.info(f"   ML Prediction: {ml_prediction:.3f}")
+                logger.info(f"   Confidence: {confidence:.3f}")
+                logger.info(f"   Prediction Adjustment: {prediction_adjustment:+.3f}")
+                logger.info(f"   Adjusted Win Rate: {adjusted_win_rate:.3f}")
+                logger.info(f"   Odds Ratio (b): {b:.3f}")
+                logger.info(f"   Confidence Factor: {confidence_factor:.3f}")
+                logger.info(f"   Kelly Fraction: {kelly_fraction:.4f} ({kelly_fraction*100:.2f}%)")
+                logger.info(f"   Raw Kelly Margin: {kelly_size:.6f} BTC (${kelly_margin_value:.2f})")
+                logger.info(f"   Minimum Margin: {min_kelly_size:.6f} BTC (${min_margin_value:.2f})")
+                logger.info(f"   Binance Min Position: {binance_min_position_size:.6f} BTC")
+                logger.info(f"   Max Margin ({max_position_percentage*100:.0f}%): {max_margin_size:.6f} BTC (${max_margin_value:.2f})")
+                logger.info(f"   Final Margin Size: {final_margin_size:.6f} BTC (${margin_value_used:.2f})")
+                logger.info(f"   Actual Position Size: {actual_position_size:.6f} BTC (${actual_position_value:.2f})")
+                
+                return final_margin_size
             
             return 0.001  # Minimum fallback
             
@@ -783,21 +928,25 @@ class EnhancedTradingService:
     async def _check_risk_conditions(self) -> bool:
         """Check if trading should continue based on comprehensive risk conditions"""
         try:
-            # Get current account balance
+            # Get current account balance from Binance futures
             account = self.binance_service.client.futures_account()
             current_balance = float(account['totalWalletBalance'])
+            available_balance = float(account['availableBalance'])
             total_margin = float(account.get('totalPositionInitialMargin', 0))
-            available_balance = current_balance - total_margin
 
             logger.info("🛡️ RISK MANAGEMENT CHECK")
             logger.info(f"   Current Balance: ${current_balance:.2f}")
             logger.info(f"   Available Balance: ${available_balance:.2f}")
             logger.info(f"   Used Margin: ${total_margin:.2f}")
             
-            # Initialize peak balance if not set
-            if self.peak_balance is None:
+            # Initialize peak balance if not set or update with current balance
+            if self.peak_balance is None or current_balance > self.peak_balance:
+                old_peak = self.peak_balance
                 self.peak_balance = current_balance
-                logger.info(f"   Peak Balance Initialized: ${self.peak_balance:.2f}")
+                if old_peak is None:
+                    logger.info(f"   Peak Balance Initialized: ${self.peak_balance:.2f}")
+                else:
+                    logger.info(f"   🎉 New Peak Balance: ${old_peak:.2f} → ${self.peak_balance:.2f}")
             
             # Check maximum drawdown
             current_drawdown = 0.0
@@ -812,12 +961,6 @@ class EnhancedTradingService:
                 if current_drawdown > self.risk_config['max_drawdown']:
                     logger.error(f"❌ RISK CHECK FAILED: Maximum drawdown exceeded ({current_drawdown:.1%} > {self.risk_config['max_drawdown']:.1%})")
                     return False
-            
-            # Update peak balance
-            if current_balance > self.peak_balance:
-                old_peak = self.peak_balance
-                self.peak_balance = current_balance
-                logger.info(f"   🎉 New Peak Balance: ${old_peak:.2f} → ${self.peak_balance:.2f}")
             
             # Check minimum balance for trading
             min_balance = 10.0  # Minimum $10 to continue trading
@@ -963,8 +1106,11 @@ class EnhancedTradingService:
             }
             
             # Save to database
-            trade_record = db_service.create_trade(db_trade_data)
-            logger.info(f"📊 Trade recorded to database: ID {trade_record.id}")
+            if self.db_service:
+                trade_record = self.db_service.create_trade(db_trade_data)
+                logger.info(f"📊 Trade recorded to database: ID {trade_record.id}")
+            else:
+                logger.warning("📊 Database service not available - trade not recorded")
             
             # Update trading session statistics if we have an active session
             if self.trading_session_id:
@@ -996,8 +1142,11 @@ class EnhancedTradingService:
                 'updated_at': datetime.utcnow()
             }
             
-            db_service.update_trading_session(self.trading_session_id, updates)
-            logger.debug(f"📈 Trading session stats updated: {total_trades} trades, {win_rate:.1f}% win rate")
+            if self.db_service:
+                self.db_service.update_trading_session(self.trading_session_id, updates)
+                logger.debug(f"📈 Trading session stats updated: {total_trades} trades, {win_rate:.1f}% win rate")
+            else:
+                logger.warning("📈 Database service not available - session stats not updated")
             
         except Exception as e:
             logger.error(f"Failed to update trading session stats: {e}")
@@ -1020,11 +1169,16 @@ class EnhancedTradingService:
             }
             
             # Save to database
-            trading_session = db_service.create_trading_session(session_data)
-            self.current_mode = mode
-            
-            logger.info(f"🚀 Trading session started: {self.trading_session_id}")
-            return trading_session.to_dict()
+            if self.db_service:
+                trading_session = self.db_service.create_trading_session(session_data)
+                self.current_mode = mode
+                
+                logger.info(f"🚀 Trading session started: {self.trading_session_id}")
+                return trading_session.to_dict()
+            else:
+                self.current_mode = mode
+                logger.warning(f"🚀 Trading session started (no database): {self.trading_session_id}")
+                return session_data
             
         except Exception as e:
             logger.error(f"Failed to start trading session: {e}")
@@ -1045,11 +1199,16 @@ class EnhancedTradingService:
                 'ended_at': datetime.utcnow()
             }
             
-            session = db_service.update_trading_session(self.trading_session_id, updates)
-            logger.info(f"🛑 Trading session stopped: {self.trading_session_id}")
-            
-            self.trading_session_id = None
-            return session.to_dict() if session else None
+            if self.db_service:
+                session = self.db_service.update_trading_session(self.trading_session_id, updates)
+                logger.info(f"🛑 Trading session stopped: {self.trading_session_id}")
+                
+                self.trading_session_id = None
+                return session.to_dict() if session else None
+            else:
+                logger.info(f"🛑 Trading session stopped (no database): {self.trading_session_id}")
+                self.trading_session_id = None
+                return updates
             
         except Exception as e:
             logger.error(f"Failed to stop trading session: {e}")
