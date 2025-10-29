@@ -2,17 +2,19 @@
 FastAPI Backend Server
 Main entry point for the trading application
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import logging
 import os
+from datetime import datetime
 
 from app.config import config
+from app.core.error_handling import handle_trading_exception
 
 from app.services.binance_service import BinanceService
 from app.services.ml_service import MLService
@@ -84,6 +86,25 @@ class OrderRequest(BaseModel):
 
 # Include API routes
 app.include_router(router)
+app.include_router(enhanced_router)
+
+# Add enhanced error handling middleware
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler for better error responses"""
+    try:
+        return handle_trading_exception(exc)
+    except Exception:
+        # Fallback for any exception in the exception handler
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": "Internal server error",
+                "error_code": "INTERNAL_ERROR",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
 app.include_router(enhanced_router)
 
 # Mount static files for frontend
