@@ -82,6 +82,21 @@ class EnhancedTradingService:
         self.realized_pnl = 0.0
         self.trades_history = []
         
+        # Dynamic model selection for regime adaptation
+        self.current_regime = "unknown"
+        self.active_model = None
+        self.regime_switch_threshold = 0.7  # Confidence threshold for regime switching
+        self.model_switch_cooldown = 300   # 5 minutes cooldown between switches
+        self.last_model_switch = 0
+        self.regime_switch_history = []
+        
+        # Regime-specific performance tracking
+        self.regime_performance = {
+            'trending': {'trades': 0, 'wins': 0, 'total_pnl': 0.0, 'avg_confidence': 0.0},
+            'ranging': {'trades': 0, 'wins': 0, 'total_pnl': 0.0, 'avg_confidence': 0.0},
+            'volatile': {'trades': 0, 'wins': 0, 'total_pnl': 0.0, 'avg_confidence': 0.0}
+        }
+        
     async def start_enhanced_trading(self, 
                                    symbol: str = "BTCUSDT", 
                                    mode: str = "balanced", 
@@ -259,34 +274,309 @@ class EnhancedTradingService:
             return None
     
     async def _get_enhanced_prediction(self, market_data: pd.DataFrame) -> Optional[Tuple]:
-        """Get enhanced ML prediction with analysis"""
+        """Get enhanced ML prediction with dynamic regime-based model selection"""
         try:
-            # Prepare observation (last 50 data points)
-            observation_data = market_data.tail(50)
+            # Step 1: Detect current market regime with quantitative analysis
+            regime_analysis = self.ml_service.detect_market_regime(market_data)
+            current_regime = regime_analysis['primary_regime']
+            regime_confidence = regime_analysis['confidence']
             
-            # Create observation vector (simplified for this example)
+            logger.info(f"🔍 Current market regime: {current_regime.upper()} "
+                       f"(confidence: {regime_confidence:.2f})")
+            
+            # Step 2: Dynamic model selection based on regime
+            selected_model = await self._select_optimal_model(current_regime, regime_confidence)
+            
+            # Step 3: Prepare observation (last 50 data points)
+            observation_data = market_data.tail(50)
             observation = self._create_observation_vector(observation_data)
             
             if observation is None:
                 return None
             
-            # Get account balance for position sizing
+            # Step 4: Get account balance for position sizing
             account = self.binance_service.client.futures_account()
             account_balance = float(account['totalWalletBalance'])
             
-            # Get enhanced prediction
-            action, confidence, position_size, analysis = self.ml_service.predict_enhanced(
+            # Step 5: Get prediction from selected model
+            if selected_model == 'regime_specific' and current_regime in self.ml_service.regime_models:
+                # Use regime-specific model if available
+                action, confidence, position_size, analysis = self._predict_with_regime_model(
+                    current_regime, observation, market_data, account_balance
+                )
+            else:
+                # Fallback to general enhanced model
+                action, confidence, position_size, analysis = self.ml_service.predict_enhanced(
+                    observation=observation,
+                    market_data=market_data,
+                    account_balance=account_balance,
+                    deterministic=True
+                )
+            
+            # Step 6: Enhance analysis with regime information
+            analysis.update({
+                'regime_analysis': regime_analysis,
+                'selected_model': selected_model,
+                'regime_performance': self.regime_performance.get(current_regime, {})
+            })
+            
+            # Step 7: Track regime performance
+            self._track_regime_performance(current_regime, confidence)
+            
+            return action, confidence, position_size, analysis
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting enhanced prediction: {e}")
+            return None
+    
+    async def _select_optimal_model(self, current_regime: str, regime_confidence: float) -> str:
+        """
+        Select the optimal model based on current market regime and performance
+        Returns: 'regime_specific', 'general', or 'hybrid'
+        """
+        try:
+            # Check if regime-specific model is available and loaded
+            regime_model_available = (
+                current_regime in self.ml_service.regime_models and 
+                self.ml_service.regime_models[current_regime] is not None
+            )
+            
+            # Check regime switching conditions
+            regime_switched = self._check_regime_switch(current_regime, regime_confidence)
+            
+            # Decision logic for model selection
+            if regime_model_available and regime_confidence >= self.regime_switch_threshold:
+                # High confidence in regime detection -> use regime-specific model
+                if regime_switched:
+                    await self._handle_regime_switch(current_regime)
+                
+                logger.info(f"🎯 Using {current_regime.upper()} specialized model")
+                return 'regime_specific'
+            
+            elif regime_model_available and regime_confidence >= 0.5:
+                # Medium confidence -> evaluate performance before switching
+                regime_perf = self.regime_performance.get(current_regime, {})
+                general_perf = self._get_general_model_performance()
+                
+                # Compare performance metrics
+                if self._should_use_regime_model(regime_perf, general_perf):
+                    logger.info(f"📊 Using {current_regime.upper()} model based on performance")
+                    return 'regime_specific'
+                else:
+                    logger.info("📈 Using general model based on performance comparison")
+                    return 'general'
+            
+            else:
+                # Low confidence or model not available -> use general model
+                logger.info("🔄 Using general model (low regime confidence or model unavailable)")
+                return 'general'
+                
+        except Exception as e:
+            logger.error(f"❌ Error selecting optimal model: {e}")
+            return 'general'  # Safe fallback
+    
+    def _check_regime_switch(self, current_regime: str, confidence: float) -> bool:
+        """Check if market regime has switched"""
+        try:
+            import time
+            current_time = time.time()
+            
+            # Check cooldown period
+            if current_time - self.last_model_switch < self.model_switch_cooldown:
+                return False
+            
+            # Check if regime actually changed
+            if self.current_regime != current_regime and confidence >= self.regime_switch_threshold:
+                return True
+            
+            return False
+            
+        except Exception:
+            return False
+    
+    async def _handle_regime_switch(self, new_regime: str):
+        """Handle switching to a new market regime"""
+        try:
+            import time
+            
+            logger.info(f"🔄 Market regime switch detected: {self.current_regime} → {new_regime}")
+            
+            # Load regime-specific model if not already loaded
+            if new_regime not in self.ml_service.regime_models or self.ml_service.regime_models[new_regime] is None:
+                logger.info(f"📦 Loading {new_regime} specialized model...")
+                success = self.ml_service.load_regime_specific_model(new_regime)
+                if not success:
+                    logger.warning(f"⚠️ Failed to load {new_regime} model, using general model")
+                    return
+            
+            # Update regime tracking
+            self.current_regime = new_regime
+            self.last_model_switch = time.time()
+            
+            # Log regime switch
+            switch_info = {
+                'timestamp': time.time(),
+                'from_regime': self.current_regime,
+                'to_regime': new_regime,
+                'model_loaded': new_regime in self.ml_service.regime_models
+            }
+            self.regime_switch_history.append(switch_info)
+            
+            # Keep only recent switches (last 24 hours)
+            cutoff_time = time.time() - 86400
+            self.regime_switch_history = [
+                switch for switch in self.regime_switch_history 
+                if switch['timestamp'] > cutoff_time
+            ]
+            
+            logger.info(f"✅ Successfully switched to {new_regime.upper()} regime model")
+            
+        except Exception as e:
+            logger.error(f"❌ Error handling regime switch: {e}")
+    
+    def _predict_with_regime_model(self, regime: str, observation: np.ndarray, 
+                                 market_data: pd.DataFrame, account_balance: float) -> Tuple:
+        """Make prediction using regime-specific model"""
+        try:
+            regime_model = self.ml_service.regime_models[regime]
+            
+            if regime_model is None:
+                raise ValueError(f"Regime model for {regime} not loaded")
+            
+            # Normalize observation if regime-specific VecNormalize is available
+            vec_normalize_attr = f'vec_normalize_{regime}'
+            if hasattr(self.ml_service, vec_normalize_attr):
+                vec_norm = getattr(self.ml_service, vec_normalize_attr)
+                if vec_norm is not None:
+                    obs_normalized = vec_norm.normalize_obs(observation.reshape(1, -1))[0]
+                else:
+                    obs_normalized = observation
+            else:
+                obs_normalized = observation
+            
+            # Get prediction from regime model
+            action_logits, _ = regime_model.predict(obs_normalized, deterministic=True)
+            action = int(action_logits)
+            
+            # Calculate confidence based on action probability distribution
+            action_probs = regime_model.policy.get_distribution(
+                regime_model.policy.obs_to_features(obs_normalized.reshape(1, -1))
+            ).distribution.probs.numpy()[0]
+            
+            confidence = float(action_probs[action])
+            
+            # Calculate regime-specific position size
+            position_size = self._calculate_regime_position_size(
+                regime, confidence, account_balance, market_data['close'].iloc[-1]
+            )
+            
+            # Enhanced analysis
+            analysis = {
+                'model_type': f'{regime}_specialized',
+                'action_probabilities': action_probs.tolist(),
+                'regime': regime,
+                'prediction': confidence,
+                'position_sizing_factor': confidence
+            }
+            
+            return action, confidence, position_size, analysis
+            
+        except Exception as e:
+            logger.error(f"❌ Error predicting with {regime} model: {e}")
+            # Fallback to general model
+            return self.ml_service.predict_enhanced(
                 observation=observation,
                 market_data=market_data,
                 account_balance=account_balance,
                 deterministic=True
             )
+    
+    def _calculate_regime_position_size(self, regime: str, confidence: float, 
+                                      account_balance: float, current_price: float) -> float:
+        """Calculate position size adjusted for regime characteristics"""
+        try:
+            base_size = self.ml_service.calculate_position_size(
+                confidence, account_balance, current_price, 
+                volatility=0.02, regime="balanced"
+            )
             
-            return action, confidence, position_size, analysis
+            # Regime-specific adjustments
+            regime_multipliers = {
+                'trending': 1.2,    # Increase size in trending markets
+                'ranging': 0.8,     # Decrease size in ranging markets
+                'volatile': 0.6     # Significant decrease in volatile markets
+            }
+            
+            multiplier = regime_multipliers.get(regime, 1.0)
+            adjusted_size = base_size * multiplier
+            
+            # Additional confidence-based adjustment
+            confidence_adjustment = 0.5 + (confidence * 0.5)  # 0.5 to 1.0 range
+            final_size = adjusted_size * confidence_adjustment
+            
+            return final_size
             
         except Exception as e:
-            logger.error(f"Error getting enhanced prediction: {e}")
-            return None
+            logger.error(f"❌ Error calculating regime position size: {e}")
+            return account_balance * 0.01 / current_price  # Safe fallback
+    
+    def _should_use_regime_model(self, regime_perf: Dict, general_perf: Dict) -> bool:
+        """Determine if regime model should be used based on performance comparison"""
+        try:
+            # Default to regime model if no performance data
+            if not regime_perf or not general_perf:
+                return True
+            
+            # Compare win rates
+            regime_win_rate = regime_perf.get('wins', 0) / max(regime_perf.get('trades', 1), 1)
+            general_win_rate = general_perf.get('wins', 0) / max(general_perf.get('trades', 1), 1)
+            
+            # Compare average PnL
+            regime_avg_pnl = regime_perf.get('total_pnl', 0) / max(regime_perf.get('trades', 1), 1)
+            general_avg_pnl = general_perf.get('total_pnl', 0) / max(general_perf.get('trades', 1), 1)
+            
+            # Use regime model if it outperforms in either metric by at least 5%
+            win_rate_advantage = regime_win_rate > (general_win_rate + 0.05)
+            pnl_advantage = regime_avg_pnl > (general_avg_pnl * 1.05)
+            
+            return win_rate_advantage or pnl_advantage
+            
+        except Exception:
+            return True  # Default to regime model
+    
+    def _get_general_model_performance(self) -> Dict:
+        """Get performance metrics for the general model"""
+        try:
+            # Calculate from trade history
+            total_trades = len(self.trades_history)
+            if total_trades == 0:
+                return {'trades': 0, 'wins': 0, 'total_pnl': 0.0}
+            
+            wins = sum(1 for trade in self.trades_history if trade.get('pnl', 0) > 0)
+            total_pnl = sum(trade.get('pnl', 0) for trade in self.trades_history)
+            
+            return {
+                'trades': total_trades,
+                'wins': wins,
+                'total_pnl': total_pnl
+            }
+            
+        except Exception:
+            return {'trades': 0, 'wins': 0, 'total_pnl': 0.0}
+    
+    def _track_regime_performance(self, regime: str, confidence: float):
+        """Track performance metrics for each regime"""
+        try:
+            if regime in self.regime_performance:
+                current_confidence = self.regime_performance[regime].get('avg_confidence', 0.0)
+                trades_count = self.regime_performance[regime].get('trades', 0)
+                
+                # Update average confidence
+                new_avg_confidence = (current_confidence * trades_count + confidence) / (trades_count + 1)
+                self.regime_performance[regime]['avg_confidence'] = new_avg_confidence
+                
+        except Exception as e:
+            logger.error(f"❌ Error tracking regime performance: {e}")
     
     def _safe_get_value(self, data_row, key: str, default: float = 0.0) -> float:
         """Safely get value from data row, handling None and missing keys"""

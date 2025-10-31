@@ -38,6 +38,33 @@ class EnhancedMLService:
         self.model_performance = {}
         self.market_regime = "unknown"
         
+        # Regime-specific models
+        self.regime_models = {
+            'trending': None,
+            'ranging': None,
+            'volatile': None
+        }
+        
+        # Model paths for different regimes
+        self.regime_model_paths = {
+            'trending': "models/ppo_trending.zip",
+            'ranging': "models/ppo_ranging.zip", 
+            'volatile': "models/ppo_volatile.zip"
+        }
+        
+        # Regime-specific training data and performance
+        self.regime_training_data = {
+            'trending': [],
+            'ranging': [],
+            'volatile': []
+        }
+        
+        self.regime_performance = {
+            'trending': {'episodes': 0, 'avg_reward': 0, 'win_rate': 0},
+            'ranging': {'episodes': 0, 'avg_reward': 0, 'win_rate': 0},
+            'volatile': {'episodes': 0, 'avg_reward': 0, 'win_rate': 0}
+        }
+        
     def extract_enhanced_features(self, df: pd.DataFrame, symbol: str = 'BTCUSDT') -> pd.DataFrame:
         """Extract comprehensive features for futures trading"""
         try:
@@ -274,37 +301,254 @@ class EnhancedMLService:
         lower_lows = (low_series < rolling_min.shift(1)).astype(int)
         return lower_lows
     
-    def detect_market_regime(self, df: pd.DataFrame) -> str:
-        """Detect current market regime (trending/ranging/volatile)"""
+    def detect_market_regime(self, df: pd.DataFrame) -> Dict[str, any]:
+        """
+        Enhanced market regime detection with quantitative metrics
+        Returns comprehensive regime analysis including confidence scores
+        """
         try:
-            # Calculate trend strength
+            logger.info("🔍 Analyzing market regime with quantitative metrics...")
+            
+            # 1. ADX for trend strength
+            adx = ta.trend.adx(df['high'], df['low'], df['close'], window=14)
+            adx_current = adx.iloc[-1] if not adx.empty else 25
+            
+            # 2. Bollinger Band Width for volatility
+            bb_upper = ta.volatility.bollinger_hband(df['close'], window=20, window_dev=2)
+            bb_lower = ta.volatility.bollinger_lband(df['close'], window=20, window_dev=2)
+            bb_width = ((bb_upper - bb_lower) / df['close']) * 100
+            bb_width_current = bb_width.iloc[-1] if not bb_width.empty else 4
+            
+            # 3. Additional quantitative indicators
+            # RSI for momentum
+            rsi = ta.momentum.rsi(df['close'], window=14)
+            rsi_current = rsi.iloc[-1] if not rsi.empty else 50
+            
+            # MACD for trend confirmation
+            macd_line = ta.trend.macd(df['close'])
+            macd_signal = ta.trend.macd_signal(df['close'])
+            macd_histogram = macd_line - macd_signal
+            macd_hist_current = macd_histogram.iloc[-1] if not macd_histogram.empty else 0
+            
+            # 4. Price action analysis
             sma_20 = ta.trend.sma_indicator(df['close'], window=20)
-            sma_50 = ta.trend.sma_indicator(df['close'], window=50)
             
-            # Volatility measure
-            volatility = df['close'].rolling(20).std() / df['close'].rolling(20).mean()
+            price_vs_sma20 = (df['close'].iloc[-1] / sma_20.iloc[-1] - 1) * 100
+            sma_slope = (sma_20.iloc[-1] / sma_20.iloc[-5] - 1) * 100
             
-            # Trend direction
-            trend_up = (sma_20.iloc[-1] > sma_50.iloc[-1]) and (df['close'].iloc[-1] > sma_20.iloc[-1])
-            trend_down = (sma_20.iloc[-1] < sma_50.iloc[-1]) and (df['close'].iloc[-1] < sma_20.iloc[-1])
+            # 5. Volume analysis
+            volume_sma = df['volume'].rolling(20).mean()
+            volume_ratio = df['volume'].iloc[-1] / volume_sma.iloc[-1] if volume_sma.iloc[-1] > 0 else 1
             
-            # High volatility threshold
-            high_vol = volatility.iloc[-1] > volatility.quantile(0.8)
+            # 6. Quantitative thresholds for regime classification (OPTIMIZED)
+            regime_scores = {
+                'trending': 0,
+                'ranging': 0,
+                'volatile': 0
+            }
             
-            if high_vol:
-                regime = "volatile"
-            elif trend_up or trend_down:
-                regime = "trending"
-            else:
-                regime = "ranging"
+            # Enhanced ADX-based trend strength scoring (OPTIMIZED)
+            if adx_current > 35:  # Very strong trend (higher threshold)
+                regime_scores['trending'] += 50
+                if adx_current > 50:  # Extremely strong trend
+                    regime_scores['trending'] += 30
+            elif adx_current > 25:  # Strong trend
+                regime_scores['trending'] += 35
+            elif adx_current > 20:  # Medium trend
+                regime_scores['trending'] += 20
+            elif adx_current < 18:  # Weak trend = ranging (adjusted threshold)
+                regime_scores['ranging'] += 35
             
-            self.market_regime = regime
-            logger.info(f"Detected market regime: {regime}")
-            return regime
+            # Enhanced Bollinger Band Width for volatility scoring (OPTIMIZED)
+            bb_width_percentile = self._calculate_percentile(bb_width, bb_width_current)
+            if bb_width_current > 8.0:  # Extremely high absolute volatility
+                regime_scores['volatile'] += 60
+            elif bb_width_current > 5.0:  # Very high absolute volatility
+                regime_scores['volatile'] += 45
+            elif bb_width_current > 3.0:  # High absolute volatility
+                regime_scores['volatile'] += 30
+            elif bb_width_percentile > 90:  # Very high relative volatility
+                regime_scores['volatile'] += 50
+            elif bb_width_percentile > 80:  # High relative volatility
+                regime_scores['volatile'] += 35
+            elif bb_width_percentile < 15:  # Low volatility = ranging
+                regime_scores['ranging'] += 30
+            elif bb_width_percentile < 30:  # Medium-low volatility = trending
+                regime_scores['trending'] += 20
+            
+            # Enhanced price momentum scoring (OPTIMIZED)
+            if abs(price_vs_sma20) > 8:  # Very strong deviation from SMA
+                regime_scores['trending'] += 35
+                if abs(price_vs_sma20) > 15:  # Extremely strong deviation
+                    regime_scores['trending'] += 25
+            elif abs(price_vs_sma20) > 4:  # Strong deviation
+                regime_scores['trending'] += 25
+            elif abs(price_vs_sma20) < 1.5:  # Very close to SMA = ranging
+                regime_scores['ranging'] += 25
+            
+            # Enhanced MACD histogram for trend confirmation (OPTIMIZED)
+            if abs(macd_hist_current) > 0.03:  # Strong momentum
+                regime_scores['trending'] += 25
+            elif abs(macd_hist_current) > 0.015:  # Medium momentum
+                regime_scores['trending'] += 15
+            elif abs(macd_hist_current) < 0.008:  # Weak momentum = ranging
+                regime_scores['ranging'] += 20
+            
+            # Enhanced volume analysis (OPTIMIZED)
+            if volume_ratio > 3.0:  # Extremely high volume = volatile
+                regime_scores['volatile'] += 35
+            elif volume_ratio > 2.0:  # Very high volume = volatile
+                regime_scores['volatile'] += 25
+            elif volume_ratio > 1.5:  # High volume = volatile
+                regime_scores['volatile'] += 15
+            elif volume_ratio < 0.6:  # Low volume = ranging
+                regime_scores['ranging'] += 15
+            
+            # Enhanced RSI extremes for volatility and ranging (OPTIMIZED)
+            if rsi_current > 85 or rsi_current < 15:  # Extreme RSI = very volatile
+                regime_scores['volatile'] += 40
+            elif rsi_current > 80 or rsi_current < 20:  # Very extreme RSI = volatile
+                regime_scores['volatile'] += 30
+            elif rsi_current > 70 or rsi_current < 30:  # High RSI = volatile
+                regime_scores['volatile'] += 15
+            elif 40 <= rsi_current <= 60:  # Neutral RSI = ranging
+                regime_scores['ranging'] += 20
+            
+            # Additional volatility boost for extreme BB width
+            if bb_width_current > 6.0:  # Very extreme BB width
+                regime_scores['volatile'] += 40  # Strong boost for volatility
+            elif bb_width_current > 4.5:  # Extreme BB width
+                regime_scores['volatile'] += 25
+            
+            # SMA slope analysis for trend confirmation (ENHANCED)
+            if abs(sma_slope) > 3:  # Very strong slope = trending
+                regime_scores['trending'] += 25
+            elif abs(sma_slope) > 1.5:  # Strong slope = trending
+                regime_scores['trending'] += 15
+            elif abs(sma_slope) < 0.3:  # Very flat slope = ranging
+                regime_scores['ranging'] += 15
+            
+            # Additional trend persistence check
+            if len(df) >= 10:
+                recent_closes = df['close'].tail(10).values
+                trend_direction_consistency = 0
+                for i in range(1, len(recent_closes)):
+                    if recent_closes[i] > recent_closes[i-1]:
+                        trend_direction_consistency += 1
+                    elif recent_closes[i] < recent_closes[i-1]:
+                        trend_direction_consistency -= 1
+                
+                # Strong directional consistency = trending
+                if abs(trend_direction_consistency) >= 6:  # 60%+ directional consistency
+                    regime_scores['trending'] += 20
+                elif abs(trend_direction_consistency) <= 2:  # Low consistency = ranging
+                    regime_scores['ranging'] += 10
+            
+            # 7. Determine primary regime with enhanced confidence scoring
+            max_score = max(regime_scores.values())
+            min_score = min(regime_scores.values())
+            score_range = max_score - min_score
+            
+            primary_regime = max(regime_scores, key=regime_scores.get)
+            
+            # Enhanced confidence calculation
+            if max_score == 0:  # No clear indicators
+                confidence = 0.0
+            elif score_range < 15:  # Scores too close together
+                confidence = 0.25  # Low confidence
+            elif max_score >= 80:  # Very high score
+                confidence = min(0.95, 0.7 + (max_score - 80) / 100)
+            elif max_score >= 60:  # Good score
+                confidence = 0.5 + (max_score - 60) / 60
+            else:  # Lower scores
+                confidence = max(0.2, max_score / 120)
+            
+            # Boost confidence if there's a clear winner
+            second_highest = sorted(regime_scores.values())[-2] if len(regime_scores) > 1 else 0
+            if max_score > second_highest * 1.4:  # Clear dominance
+                confidence = min(0.95, confidence * 1.15)
+            
+            # 8. Calculate sub-regime characteristics
+            trend_direction = "neutral"
+            if regime_scores['trending'] > 40:
+                if price_vs_sma20 > 2 and macd_hist_current > 0:
+                    trend_direction = "bullish"
+                elif price_vs_sma20 < -2 and macd_hist_current < 0:
+                    trend_direction = "bearish"
+            
+            volatility_level = "medium"
+            if bb_width_percentile > 80:
+                volatility_level = "high"
+            elif bb_width_percentile < 20:
+                volatility_level = "low"
+            
+            # 9. Comprehensive regime analysis
+            regime_analysis = {
+                'primary_regime': primary_regime,
+                'confidence': min(confidence, 1.0),
+                'scores': regime_scores,
+                'trend_direction': trend_direction,
+                'volatility_level': volatility_level,
+                'metrics': {
+                    'adx': round(adx_current, 2),
+                    'bb_width': round(bb_width_current, 2),
+                    'bb_width_percentile': round(bb_width_percentile, 1),
+                    'rsi': round(rsi_current, 2),
+                    'macd_histogram': round(macd_hist_current, 4),
+                    'price_vs_sma20': round(price_vs_sma20, 2),
+                    'volume_ratio': round(volume_ratio, 2),
+                    'sma_slope': round(sma_slope, 2)
+                },
+                'timestamp': datetime.now().isoformat(),
+                'market_state': self._classify_market_state(regime_scores, confidence)
+            }
+            
+            # Update instance variables
+            self.market_regime = primary_regime
+            
+            logger.info(f"📊 Market Regime Analysis: {primary_regime.upper()} "
+                       f"(confidence: {confidence:.2f}, ADX: {adx_current:.1f}, "
+                       f"BB Width: {bb_width_current:.2f})")
+            
+            return regime_analysis
             
         except Exception as e:
-            logger.error(f"Error detecting market regime: {e}")
-            return "unknown"
+            logger.error(f"❌ Error detecting market regime: {e}")
+            return {
+                'primary_regime': 'unknown',
+                'confidence': 0.0,
+                'scores': {'trending': 0, 'ranging': 0, 'volatile': 0},
+                'trend_direction': 'neutral',
+                'volatility_level': 'medium',
+                'metrics': {},
+                'timestamp': datetime.now().isoformat(),
+                'market_state': 'uncertain'
+            }
+    
+    def _calculate_percentile(self, series: pd.Series, current_value: float) -> float:
+        """Calculate percentile rank of current value in series"""
+        try:
+            if len(series) == 0:
+                return 50.0
+            return (series < current_value).mean() * 100
+        except Exception:
+            return 50.0
+    
+    def _classify_market_state(self, scores: Dict, confidence: float) -> str:
+        """Classify overall market state for strategy selection"""
+        max_score = max(scores.values())
+        
+        if confidence > 0.7:
+            if scores['trending'] == max_score:
+                return "strong_trend"
+            elif scores['volatile'] == max_score:
+                return "high_volatility"
+            else:
+                return "consolidation"
+        elif confidence > 0.5:
+            return "moderate_" + max(scores, key=scores.get)
+        else:
+            return "uncertain"
     
     def calculate_position_size(self, 
                               confidence: float, 
@@ -681,5 +925,342 @@ class EnhancedMLService:
                 info.update(metadata)
             except Exception:
                 pass
+        
+        return info
+    
+    # ===== REGIME-SPECIFIC MODEL TRAINING METHODS =====
+    
+    def train_regime_specific_models(self,
+                                   api_key: str,
+                                   api_secret: str,
+                                   symbol: str = 'BTCUSDT',
+                                   total_timesteps: int = 100000,
+                                   algorithm: str = 'PPO') -> Dict[str, bool]:
+        """
+        Train separate models for each market regime (trending, ranging, volatile)
+        Returns training success status for each regime
+        """
+        try:
+            logger.info("🎯 Starting regime-specific model training...")
+            
+            # Step 1: Load and analyze historical data
+            from app.models.enhanced_futures_env import EnhancedFuturesEnv
+            temp_env = EnhancedFuturesEnv(symbol=symbol, initial_balance=10000.0, window_size=50)
+            raw_data = temp_env.load_data(api_key, api_secret, interval='1h', limit=5000)
+            enhanced_data = self.extract_enhanced_features(raw_data, symbol)
+            
+            # Step 2: Segment data by market regimes
+            regime_segments = self._segment_data_by_regime(enhanced_data)
+            
+            training_results = {}
+            
+            # Step 3: Train model for each regime
+            for regime in ['trending', 'ranging', 'volatile']:
+                if len(regime_segments[regime]) < 500:  # Minimum data requirement
+                    logger.warning(f"Insufficient data for {regime} regime training ({len(regime_segments[regime])} samples)")
+                    training_results[regime] = False
+                    continue
+                
+                logger.info(f"🔄 Training {regime} model with {len(regime_segments[regime])} samples...")
+                success = self._train_single_regime_model(
+                    regime=regime,
+                    regime_data=regime_segments[regime],
+                    symbol=symbol,
+                    total_timesteps=total_timesteps,
+                    algorithm=algorithm
+                )
+                training_results[regime] = success
+                
+                if success:
+                    logger.info(f"✅ {regime.capitalize()} model training completed")
+                else:
+                    logger.error(f"❌ {regime.capitalize()} model training failed")
+            
+            # Step 4: Update regime performance tracking
+            self._update_regime_performance(training_results)
+            
+            logger.info(f"🎯 Regime-specific training completed: {training_results}")
+            return training_results
+            
+        except Exception as e:
+            logger.error(f"❌ Error in regime-specific training: {e}")
+            return {'trending': False, 'ranging': False, 'volatile': False}
+    
+    def _segment_data_by_regime(self, data: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+        """Segment historical data by market regimes"""
+        try:
+            regime_segments = {
+                'trending': [],
+                'ranging': [],
+                'volatile': []
+            }
+            
+            # Analyze data in sliding windows
+            window_size = 100  # Analyze 100 candles at a time
+            step_size = 20     # Move window by 20 candles
+            
+            for start_idx in range(0, len(data) - window_size, step_size):
+                end_idx = start_idx + window_size
+                window_data = data.iloc[start_idx:end_idx].copy()
+                
+                if len(window_data) < window_size:
+                    continue
+                
+                # Analyze regime for this window
+                regime_analysis = self.detect_market_regime(window_data)
+                primary_regime = regime_analysis['primary_regime']
+                confidence = regime_analysis['confidence']
+                
+                # Only include high-confidence regime classifications
+                if confidence > 0.6 and primary_regime in regime_segments:
+                    # Add metadata for training
+                    window_data['regime'] = primary_regime
+                    window_data['regime_confidence'] = confidence
+                    window_data['window_start'] = start_idx
+                    
+                    regime_segments[primary_regime].append(window_data)
+            
+            # Combine segments for each regime
+            combined_segments = {}
+            for regime in regime_segments:
+                if regime_segments[regime]:
+                    combined_segments[regime] = pd.concat(regime_segments[regime], ignore_index=True)
+                else:
+                    combined_segments[regime] = pd.DataFrame()
+            
+            # Log regime distribution
+            for regime, segment in combined_segments.items():
+                logger.info(f"📊 {regime.capitalize()} regime: {len(segment)} samples")
+            
+            return combined_segments
+            
+        except Exception as e:
+            logger.error(f"❌ Error segmenting data by regime: {e}")
+            return {'trending': pd.DataFrame(), 'ranging': pd.DataFrame(), 'volatile': pd.DataFrame()}
+    
+    def _train_single_regime_model(self,
+                                  regime: str,
+                                  regime_data: pd.DataFrame,
+                                  symbol: str,
+                                  total_timesteps: int,
+                                  algorithm: str) -> bool:
+        """Train a single model for a specific market regime"""
+        try:
+            # Create regime-specific environment
+            from app.models.enhanced_futures_env import EnhancedFuturesEnv
+            env = EnhancedFuturesEnv(
+                symbol=symbol,
+                initial_balance=10000.0,
+                window_size=50,
+                regime_focus=regime  # Focus training on this regime
+            )
+            
+            # Set regime-specific data
+            env.data = regime_data
+            
+            # Configure regime-specific parameters
+            regime_config = self._get_regime_training_config(regime)
+            
+            # Setup environment
+            env = Monitor(env)
+            vec_env = DummyVecEnv([lambda: env])
+            vec_norm = VecNormalize(vec_env, norm_obs=True, norm_reward=True, clip_obs=10.0)
+            
+            # Create model with regime-specific configuration
+            if algorithm == 'PPO':
+                model = PPO(
+                    "MlpPolicy",
+                    vec_norm,
+                    learning_rate=regime_config['learning_rate'],
+                    n_steps=regime_config['n_steps'],
+                    batch_size=regime_config['batch_size'],
+                    n_epochs=regime_config['n_epochs'],
+                    gamma=regime_config['gamma'],
+                    gae_lambda=regime_config['gae_lambda'],
+                    clip_range=regime_config['clip_range'],
+                    ent_coef=regime_config['ent_coef'],
+                    verbose=1,
+                    policy_kwargs=dict(net_arch=regime_config['net_arch'])
+                )
+            else:
+                raise ValueError(f"Algorithm {algorithm} not supported for regime training")
+            
+            # Setup callbacks
+            model_path = self.regime_model_paths[regime]
+            os.makedirs(os.path.dirname(model_path), exist_ok=True)
+            
+            checkpoint_callback = CheckpointCallback(
+                save_freq=max(10000, total_timesteps // 10),
+                save_path=f'./models/checkpoints/{regime}/',
+                name_prefix=f'{algorithm.lower()}_{regime}'
+            )
+            
+            # Train the model
+            logger.info(f"🏃 Training {regime} model...")
+            model.learn(
+                total_timesteps=total_timesteps,
+                callback=[checkpoint_callback],
+                progress_bar=True
+            )
+            
+            # Save regime-specific model
+            model.save(model_path)
+            self.regime_models[regime] = model
+            
+            # Save regime-specific VecNormalize and metadata
+            vec_norm_path = model_path.replace('.zip', '_vecnormalize.pkl')
+            try:
+                vec_norm.save(vec_norm_path)
+            except Exception as e:
+                logger.warning(f"Could not save VecNormalize for {regime}: {e}")
+            
+            # Save regime-specific metadata
+            metadata = {
+                'regime': regime,
+                'algorithm': algorithm,
+                'symbol': symbol,
+                'training_samples': len(regime_data),
+                'training_timesteps': total_timesteps,
+                'training_date': datetime.now().isoformat(),
+                'regime_config': regime_config
+            }
+            
+            metadata_path = model_path.replace('.zip', '_metadata.pkl')
+            joblib.dump(metadata, metadata_path)
+            
+            logger.info(f"✅ {regime.capitalize()} model saved to {model_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error training {regime} model: {e}")
+            return False
+    
+    def _get_regime_training_config(self, regime: str) -> Dict:
+        """Get regime-specific training hyperparameters"""
+        base_config = {
+            'learning_rate': 3e-4,
+            'n_steps': 2048,
+            'batch_size': 64,
+            'n_epochs': 10,
+            'gamma': 0.99,
+            'gae_lambda': 0.95,
+            'clip_range': 0.2,
+            'ent_coef': 0.01,
+            'net_arch': [512, 512, 256]
+        }
+        
+        # Regime-specific optimizations
+        if regime == 'trending':
+            # For trending markets: focus on momentum, higher learning rate
+            base_config.update({
+                'learning_rate': 5e-4,  # Higher learning rate for trend following
+                'gamma': 0.995,         # Longer horizon for trends
+                'gae_lambda': 0.98,     # Better advantage estimation for trends
+                'net_arch': [512, 512, 512, 256]  # Deeper network for trend patterns
+            })
+        elif regime == 'ranging':
+            # For ranging markets: focus on mean reversion, conservative parameters
+            base_config.update({
+                'learning_rate': 2e-4,  # Lower learning rate for stability
+                'gamma': 0.98,          # Shorter horizon for mean reversion
+                'clip_range': 0.15,     # Tighter clipping for stability
+                'n_epochs': 15,         # More epochs for better convergence
+                'net_arch': [256, 256, 128]  # Smaller network for simpler patterns
+            })
+        elif regime == 'volatile':
+            # For volatile markets: focus on risk management, robust parameters
+            base_config.update({
+                'learning_rate': 1e-4,  # Much lower learning rate for stability
+                'gamma': 0.95,          # Shorter horizon for quick adaptation
+                'ent_coef': 0.02,       # Higher entropy for exploration
+                'clip_range': 0.1,      # Very tight clipping for stability
+                'batch_size': 32,       # Smaller batch size for faster updates
+                'net_arch': [256, 256, 256, 128]  # Balanced network
+            })
+        
+        return base_config
+    
+    def load_regime_specific_model(self, regime: str) -> bool:
+        """Load a specific regime model"""
+        try:
+            if regime not in self.regime_model_paths:
+                logger.error(f"Invalid regime: {regime}")
+                return False
+            
+            model_path = self.regime_model_paths[regime]
+            
+            if not os.path.exists(model_path):
+                logger.warning(f"Regime model not found: {model_path}")
+                return False
+            
+            # Load the regime model
+            self.regime_models[regime] = PPO.load(model_path)
+            
+            # Load regime-specific VecNormalize if available
+            vec_norm_path = model_path.replace('.zip', '_vecnormalize.pkl')
+            if os.path.exists(vec_norm_path):
+                try:
+                    from app.models.enhanced_futures_env import EnhancedFuturesEnv
+                    dummy_env = EnhancedFuturesEnv(symbol='BTCUSDT', initial_balance=10000.0, window_size=50)
+                    dummy_vec_env = DummyVecEnv([lambda: dummy_env])
+                    regime_vec_norm = VecNormalize.load(vec_norm_path, venv=dummy_vec_env)
+                    regime_vec_norm.training = False
+                    setattr(self, f'vec_normalize_{regime}', regime_vec_norm)
+                except Exception as e:
+                    logger.warning(f"Could not load VecNormalize for {regime}: {e}")
+            
+            logger.info(f"✅ {regime.capitalize()} model loaded successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error loading {regime} model: {e}")
+            return False
+    
+    def load_all_regime_models(self) -> Dict[str, bool]:
+        """Load all regime-specific models"""
+        results = {}
+        for regime in ['trending', 'ranging', 'volatile']:
+            results[regime] = self.load_regime_specific_model(regime)
+        
+        loaded_count = sum(results.values())
+        logger.info(f"📦 Loaded {loaded_count}/3 regime-specific models")
+        return results
+    
+    def _update_regime_performance(self, training_results: Dict[str, bool]):
+        """Update regime performance tracking after training"""
+        for regime, success in training_results.items():
+            if success:
+                self.regime_performance[regime]['episodes'] += 1
+                # Performance metrics will be updated during actual trading
+        
+        logger.info(f"📊 Updated regime performance tracking: {self.regime_performance}")
+    
+    def get_regime_model_info(self) -> Dict:
+        """Get information about all regime-specific models"""
+        info = {
+            'regime_models_available': {},
+            'current_regime': self.market_regime,
+            'regime_performance': self.regime_performance
+        }
+        
+        for regime in ['trending', 'ranging', 'volatile']:
+            model_path = self.regime_model_paths[regime]
+            model_loaded = self.regime_models[regime] is not None
+            model_exists = os.path.exists(model_path)
+            
+            info['regime_models_available'][regime] = {
+                'model_exists': model_exists,
+                'model_loaded': model_loaded,
+                'model_path': model_path
+            }
+            
+            # Add metadata if available
+            metadata_path = model_path.replace('.zip', '_metadata.pkl')
+            if os.path.exists(metadata_path):
+                try:
+                    metadata = joblib.load(metadata_path)
+                    info['regime_models_available'][regime]['metadata'] = metadata
+                except Exception:
+                    pass
         
         return info
