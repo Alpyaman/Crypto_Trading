@@ -20,7 +20,7 @@ from app.core.error_handling import handle_trading_exception
 from app.services.binance_service import BinanceService
 from app.services.ml_service import MLService
 from app.services.trading_service import TradingService
-from app.services.monitoring_service import monitoring_service
+# from app.services.monitoring_service import monitoring_service
 # from app.services.enhanced_ml_service import EnhancedMLService
 # from app.services.training_state import TrainingStateManager
 from app.api.routes import router, set_services
@@ -64,38 +64,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Prometheus monitoring middleware
-@app.middleware("http")
-async def monitor_requests(request: Request, call_next):
-    """Monitor API requests for Prometheus metrics"""
-    start_time = time.time()
+# Prometheus monitoring middleware (temporarily disabled)
+# @app.middleware("http")
+# async def monitor_requests(request: Request, call_next):
+#     """Monitor API requests for Prometheus metrics"""
+#     start_time = time.time()
     
-    try:
-        response = await call_next(request)
-        duration = time.time() - start_time
+#     try:
+#         response = await call_next(request)
+#         duration = time.time() - start_time
         
-        # Record metrics
-        monitoring_service.record_api_request(
-            method=request.method,
-            endpoint=request.url.path,
-            status_code=response.status_code,
-            duration=duration
-        )
+#         # Record metrics
+#         monitoring_service.record_api_request(
+#             method=request.method,
+#             endpoint=request.url.path,
+#             status_code=response.status_code,
+#             duration=duration
+#         )
         
-        return response
-    except Exception as e:
-        duration = time.time() - start_time
+#         return response
+#     except Exception as e:
+#         duration = time.time() - start_time
         
-        # Record error
-        monitoring_service.record_api_error(type(e).__name__)
-        monitoring_service.record_api_request(
-            method=request.method,
-            endpoint=request.url.path,
-            status_code=500,
-            duration=duration
-        )
+#         # Record error
+#         monitoring_service.record_api_error(type(e).__name__)
+#         monitoring_service.record_api_request(
+#             method=request.method,
+#             endpoint=request.url.path,
+#             status_code=500,
+#             duration=duration
+#         )
         
-        raise
+#         raise
 
 # Initialize services
 binance_service = None
@@ -181,9 +181,9 @@ async def startup_event():
     
     logger.info("Starting Crypto Trading AI application...")
     
-    # Start monitoring service
-    monitoring_service.start_system_monitoring()
-    logger.info("📊 Prometheus monitoring service started")
+    # Start monitoring service (temporarily disabled)
+    # monitoring_service.start_system_monitoring()
+    logger.info("📊 Prometheus monitoring service temporarily disabled")
     
     # Initialize database
     try:
@@ -255,9 +255,9 @@ async def shutdown_event():
     
     logger.info("Shutting down Crypto Trading AI application...")
     
-    # Stop monitoring service
-    monitoring_service.stop_system_monitoring()
-    logger.info("📊 Prometheus monitoring service stopped")
+    # Stop monitoring service (temporarily disabled)
+    # monitoring_service.stop_system_monitoring()
+    logger.info("📊 Prometheus monitoring service was disabled")
     
     # Stop any active trading
     if trading_service and trading_service.is_trading:
@@ -328,51 +328,61 @@ async def get_price_legacy(symbol: str):
     return {"symbol": symbol, "price": price}
 
 
-# === MONITORING AND OBSERVABILITY ENDPOINTS ===
+# === MONITORING AND OBSERVABILITY ENDPOINTS (TEMPORARILY DISABLED) ===
 
-@app.get("/metrics", response_class=PlainTextResponse)
-async def get_prometheus_metrics():
-    """
-    Prometheus metrics endpoint
-    Returns metrics in Prometheus text format for scraping
-    """
-    return monitoring_service.get_prometheus_metrics()
+# @app.get("/metrics", response_class=PlainTextResponse)
+# async def get_prometheus_metrics():
+#     """
+#     Prometheus metrics endpoint
+#     Returns metrics in Prometheus text format for scraping
+#     """
+#     return monitoring_service.get_prometheus_metrics()
 
+# @app.get("/health")
+# async def health_check():
+#     """
+#     Comprehensive health check endpoint
+#     Returns system health status with detailed metrics
+#     """
+#     return monitoring_service.get_health_status()
+
+# @app.get("/metrics/snapshot")
+# async def get_metrics_snapshot():
+#     """
+#     Get current metrics snapshot in JSON format
+#     Useful for dashboards and debugging
+#     """
+#     return monitoring_service.get_metrics_snapshot()
+
+# @app.post("/metrics/export")
+# async def export_metrics(request: Request):
+#     """
+#     Export current metrics to JSON file
+#     """
+#     try:
+#         body = await request.json()
+#         filepath = body.get("filepath", f"metrics_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
+        
+#         monitoring_service.export_metrics_json(filepath)
+        
+#         return {
+#             "status": "success",
+#             "message": f"Metrics exported to {filepath}",
+#             "timestamp": datetime.now().isoformat()
+#         }
+#     except Exception as e:
+#         logger.error(f"Error exporting metrics: {e}")
+#         raise HTTPException(status_code=500, detail=str(e))
+
+# Temporary basic health endpoint
 @app.get("/health")
-async def health_check():
-    """
-    Comprehensive health check endpoint
-    Returns system health status with detailed metrics
-    """
-    return monitoring_service.get_health_status()
-
-@app.get("/metrics/snapshot")
-async def get_metrics_snapshot():
-    """
-    Get current metrics snapshot in JSON format
-    Useful for dashboards and debugging
-    """
-    return monitoring_service.get_metrics_snapshot()
-
-@app.post("/metrics/export")
-async def export_metrics(request: Request):
-    """
-    Export current metrics to JSON file
-    """
-    try:
-        body = await request.json()
-        filepath = body.get("filepath", f"metrics_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
-        
-        monitoring_service.export_metrics_json(filepath)
-        
-        return {
-            "status": "success",
-            "message": f"Metrics exported to {filepath}",
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Error exporting metrics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+async def basic_health_check():
+    """Basic health check without monitoring service"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "message": "Trading API is running (monitoring temporarily disabled)"
+    }
 
 
 if __name__ == "__main__":
