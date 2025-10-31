@@ -45,6 +45,9 @@ class EnhancedTradingService:
         self.trading_task = None
         self.trading_history = []
         
+        # ML observation configuration
+        self.window_size = 50  # Must match EnhancedFuturesEnv window_size
+        
         # Enhanced trading configuration
         self.current_position = {
             'symbol': None,
@@ -76,6 +79,8 @@ class EnhancedTradingService:
         self.last_trade_date = None
         self.peak_balance = None
         self.max_drawdown = 0.0
+        self.realized_pnl = 0.0
+        self.trades_history = []
         
     async def start_enhanced_trading(self, 
                                    symbol: str = "BTCUSDT", 
@@ -283,59 +288,211 @@ class EnhancedTradingService:
             logger.error(f"Error getting enhanced prediction: {e}")
             return None
     
-    def _create_observation_vector(self, data: pd.DataFrame) -> Optional[np.ndarray]:
-        """Create observation vector for ML model"""
+    def _safe_get_value(self, data_row, key: str, default: float = 0.0) -> float:
+        """Safely get value from data row, handling None and missing keys"""
         try:
-            if len(data) < 20:
+            value = data_row.get(key, default)
+            if value is None or pd.isna(value):
+                return default
+            return float(value)
+        except (ValueError, TypeError):
+            return default
+    
+    def _create_observation_vector(self, data: pd.DataFrame) -> Optional[np.ndarray]:
+        """
+        Create observation vector matching EXACT training format from EnhancedFuturesEnv
+        
+        The observation must match the training environment structure:
+        - Market features (price action, trends, momentum, volume, futures-specific)
+        - Position and portfolio features
+        - Risk metrics
+        - Market structure features
+        
+        Total size: 100 features (matching observation_space)
+        """
+        try:
+            if len(data) < self.window_size:
+                logger.warning(f"Insufficient data: need {self.window_size}, got {len(data)}")
                 return None
             
             # Use the last row for current market state
-            last_row = data.iloc[-1]
+            current_row = data.iloc[-1]
+            current_price = self._safe_get_value(current_row, 'close', 1.0)
             
-            # Create a simplified observation vector
-            # In production, this would be more sophisticated and match training data
             features = []
             
-            # Price features
-            if 'close' in last_row:
+            # === MARKET FEATURES (Price Action) ===
+            # Price movements (4 features)
+            features.extend([
+                self._safe_get_value(current_row, 'price_change', 0.0),
+                self._safe_get_value(current_row, 'volatility_ratio', 0.0),  
+                self._safe_get_value(current_row, 'bb_position', 0.0),
+                self._safe_get_value(current_row, 'bb_width', 0.0),
+            ])
+            
+            # === TREND INDICATORS (4 features) ===
+            features.extend([
+                self._safe_get_value(current_row, 'sma_20', current_price) / current_price if current_price > 0 else 0.0,
+                self._safe_get_value(current_row, 'ema_20', current_price) / current_price if current_price > 0 else 0.0,
+                self._safe_get_value(current_row, 'macd', 0.0) / current_price if current_price > 0 else 0.0,
+                self._safe_get_value(current_row, 'macd_histogram', 0.0) / current_price if current_price > 0 else 0.0,
+            ])
+            
+            # === MOMENTUM INDICATORS (4 features) ===
+            features.extend([
+                self._safe_get_value(current_row, 'rsi_14', 50.0) / 100.0,
+                self._safe_get_value(current_row, 'rsi_21', 50.0) / 100.0,
+                self._safe_get_value(current_row, 'williams_r', -50.0) / 100.0,
+                self._safe_get_value(current_row, 'stoch_k', 50.0) / 100.0,
+            ])
+            
+            # === VOLUME INDICATORS (2 features) ===
+            features.extend([
+                self._safe_get_value(current_row, 'volume_ratio', 1.0),
+                np.log1p(self._safe_get_value(current_row, 'volume', 1.0)) / 20.0,  # Normalized volume
+            ])
+            
+            # === FUTURES-SPECIFIC FEATURES (4 features) ===
+            features.extend([
+                self._safe_get_value(current_row, 'funding_rate', 0.0001) * 10000,  # Scale up
+                self._safe_get_value(current_row, 'long_short_ratio', 1.0),
+                self._safe_get_value(current_row, 'open_interest_change', 0.0),
+                self._safe_get_value(current_row, 'liquidation_pressure', 0.0),
+            ])
+            
+            # === POSITION AND PORTFOLIO FEATURES (13 features) ===
+            # Get current balance and position info
+            balance = getattr(self, 'current_balance', 10000.0) or 10000.0
+            initial_balance = 10000.0  # Match training environment
+            position_size = self.current_position.get('size', 0.0) or 0.0
+            margin_used = self.current_position.get('margin_used', 0.0) or 0.0
+            unrealized_pnl = self.current_position.get('unrealized_pnl', 0.0) or 0.0
+            realized_pnl = getattr(self, 'realized_pnl', 0.0) or 0.0
+            
+            total_value = balance + unrealized_pnl
+            
+            features.extend([
+                # Portfolio state (4 features)
+                balance / initial_balance,
+                total_value / initial_balance,
+                realized_pnl / initial_balance,
+                unrealized_pnl / initial_balance,
+                
+                # Position state (3 features)
+                position_size / initial_balance if initial_balance > 0 else 0.0,
+                self.current_position.get('leverage', 10) / 20.0,  # Normalized by max leverage
+                margin_used / balance if balance > 0 else 0.0,
+                
+                # Position details (3 features)
+                1.0 if self.current_position.get('side') == 'long' else 0.0,
+                1.0 if self.current_position.get('side') == 'short' else 0.0,
+                abs(position_size) / (balance / current_price) if balance > 0 and current_price > 0 else 0.0,
+                
+                # Risk metrics (3 features)  
+                getattr(self, 'max_drawdown', 0.0) or 0.0,
+                ((total_value - (getattr(self, 'peak_balance', None) or initial_balance)) / 
+                 (getattr(self, 'peak_balance', None) or initial_balance)) if (getattr(self, 'peak_balance', None) or initial_balance) > 0 else 0.0,
+                len(getattr(self, 'trades_history', [])) / 100.0,  # Normalized trade count
+            ])
+            
+            # === MARKET STRUCTURE FEATURES (4 features) ===
+            # Support/Resistance and Trend analysis
+            lookback = min(20, len(data))
+            recent_data = data.tail(lookback)
+            
+            if len(recent_data) >= 10:
+                support = recent_data['low'].min()
+                resistance = recent_data['high'].max()
+                
+                # Support/Resistance (2 features)
                 features.extend([
-                    last_row.get('price_change', 0),
-                    last_row.get('volatility_ratio', 0),
-                    last_row.get('bb_position', 0),
-                    last_row.get('bb_width', 0),
+                    (current_price - support) / current_price if current_price > 0 else 0.0,
+                    (resistance - current_price) / current_price if current_price > 0 else 0.0,
+                ])
+                
+                # Trend strength (2 features)
+                price_trend = (recent_data['close'].iloc[-1] - recent_data['close'].iloc[0]) / recent_data['close'].iloc[0]
+                volume_trend = (recent_data['volume'].iloc[-1] - recent_data['volume'].iloc[0]) / recent_data['volume'].iloc[0]
+                
+                features.extend([
+                    price_trend,
+                    volume_trend,
+                ])
+            else:
+                features.extend([0.0, 0.0, 0.0, 0.0])
+            
+            # === ADDITIONAL TECHNICAL FEATURES ===
+            # Fill remaining features to reach exactly 100
+            additional_features = []
+            
+            # Additional price features
+            additional_features.extend([
+                self._safe_get_value(current_row, 'high_low_ratio', 1.0) - 1.0,
+                self._safe_get_value(current_row, 'open_close_ratio', 1.0) - 1.0,
+                self._safe_get_value(current_row, 'volume_change', 0.0),
+            ])
+            
+            # Additional moving averages
+            for period in [10, 50]:
+                sma_col = f'sma_{period}'
+                ema_col = f'ema_{period}'
+                additional_features.extend([
+                    self._safe_get_value(current_row, sma_col, current_price) / current_price if current_price > 0 else 1.0,
+                    self._safe_get_value(current_row, ema_col, current_price) / current_price if current_price > 0 else 1.0,
                 ])
             
-            # Technical indicators
-            current_price = last_row.get('close', 1)
-            features.extend([
-                last_row.get('sma_20', current_price) / current_price,
-                last_row.get('ema_20', current_price) / current_price,
-                last_row.get('macd', 0) / current_price,
-                last_row.get('rsi_14', 50) / 100.0,
+            # Additional momentum indicators
+            additional_features.extend([
+                self._safe_get_value(current_row, 'macd_signal', 0.0) / current_price if current_price > 0 else 0.0,
+                self._safe_get_value(current_row, 'macd_momentum', 0.0),
+                self._safe_get_value(current_row, 'atr_14', 0.0) / current_price if current_price > 0 else 0.0,
             ])
             
-            # Volume features
-            features.extend([
-                last_row.get('volume_ratio', 1),
-                min(1.0, last_row.get('volume', 0) / 1000000),  # Normalized volume
+            # Time-based features
+            additional_features.extend([
+                self._safe_get_value(current_row, 'hour', 0) / 24.0,
+                self._safe_get_value(current_row, 'day_of_week', 0) / 7.0,
+                self._safe_get_value(current_row, 'is_weekend', 0),
             ])
             
-            # Position features (current position status)
-            features.extend([
-                1.0 if self.current_position['side'] == 'long' else 0.0,
-                1.0 if self.current_position['side'] == 'short' else 0.0,
-                self.current_position['size'] / 1000.0,  # Normalized position size
+            # Market regime indicators
+            additional_features.extend([
+                self._safe_get_value(current_row, 'higher_highs', 0),
+                self._safe_get_value(current_row, 'lower_lows', 0),
+                self._safe_get_value(current_row, 'trend_strength', 0),
             ])
             
-            # Pad to required size (simplified)
-            while len(features) < 100:  # Match enhanced environment observation size
-                features.append(0.0)
+            features.extend(additional_features)
             
-            return np.array(features[:100], dtype=np.float32)
+            # === ENSURE EXACT SIZE ===
+            expected_size = 100  # Must match EnhancedFuturesEnv observation_space
+            
+            if len(features) < expected_size:
+                # Pad with zeros if needed
+                features.extend([0.0] * (expected_size - len(features)))
+            elif len(features) > expected_size:
+                # Truncate if too many features
+                features = features[:expected_size]
+            
+            # Final validation
+            if len(features) != expected_size:
+                raise ValueError(f"Feature mismatch: {len(features)} != {expected_size}")
+            
+            # Convert to numpy array with exact dtype
+            observation = np.array(features, dtype=np.float32)
+            
+            # Validate no NaN or infinite values
+            if np.any(np.isnan(observation)) or np.any(np.isinf(observation)):
+                logger.warning("Observation contains NaN or infinite values, replacing with zeros")
+                observation = np.nan_to_num(observation, nan=0.0, posinf=0.0, neginf=0.0)
+            
+            logger.debug(f"Created observation vector: shape={observation.shape}, dtype={observation.dtype}")
+            return observation
             
         except Exception as e:
             logger.error(f"Error creating observation vector: {e}")
-            return None
+            # Return zero observation as fallback
+            return np.zeros(100, dtype=np.float32)
     
     async def _execute_enhanced_trading_decision(self,
                                                symbol: str,
@@ -489,94 +646,137 @@ class EnhancedTradingService:
             logger.error(f"Error opening short position: {e}")
     
     def _adjust_position_size(self, base_size: float, confidence: float, analysis: Dict) -> float:
-        """Enhanced position sizing with Kelly Criterion, transaction costs, and slippage modeling"""
+        """
+        Position sizing with comprehensive risk management
+        Implements multi-layer risk controls to prevent catastrophic losses
+        """
         try:
             current_price = analysis.get('current_price', 115000)  # Fallback price
             
-            # Get real-time account balance from Binance futures
-            account = self.binance_service.client.futures_account()
-            current_balance = float(account['totalWalletBalance'])
-            available_balance = float(account['availableBalance'])
+            # 1. ACCOUNT-LEVEL RISK LIMITS
+            account_balance = self._get_account_balance()
+            if account_balance <= 0:
+                logger.error("Invalid account balance for position sizing")
+                return 0.0
             
-            # 1. Kelly Criterion Position Sizing
+            max_portfolio_risk = account_balance * self.risk_config.get('max_portfolio_risk', 0.20)  # 20% max
+            current_exposure = self._calculate_current_exposure()
+            
+            if current_exposure >= max_portfolio_risk:
+                logger.warning(f"Maximum portfolio risk reached: ${current_exposure:.2f} >= ${max_portfolio_risk:.2f}")
+                return 0.0
+            
+            # Calculate remaining risk budget
+            remaining_risk_budget = max_portfolio_risk - current_exposure
+            
+            # 2. DRAWDOWN-BASED POSITION REDUCTION
+            current_drawdown = self._calculate_current_drawdown()
+            drawdown_reduction = 1.0
+            
+            if current_drawdown > 0.05:  # 5% drawdown threshold
+                if current_drawdown > 0.20:  # Severe drawdown
+                    logger.warning(f"Severe drawdown detected: {current_drawdown:.1%} - Halting trading")
+                    return 0.0
+                elif current_drawdown > 0.10:  # Moderate drawdown
+                    drawdown_reduction = max(0.3, 1.0 - (current_drawdown * 3))  # Reduce up to 70%
+                    logger.warning(f"Moderate drawdown: {current_drawdown:.1%} - Reducing position size by {(1-drawdown_reduction):.1%}")
+                else:  # Minor drawdown
+                    drawdown_reduction = max(0.5, 1.0 - (current_drawdown * 2))  # Reduce up to 50%
+                    logger.info(f"Minor drawdown: {current_drawdown:.1%} - Reducing position size by {(1-drawdown_reduction):.1%}")
+            
+            # 3. KELLY CRITERION WITH HALF-KELLY SAFETY
             kelly_size = self._calculate_kelly_position_size(analysis, confidence)
+            kelly_size *= 0.5  # Use half-kelly for risk management
             
-            # 2. Transaction Cost Modeling
-            transaction_costs = self._calculate_total_transaction_costs(base_size, current_price, analysis)
+            # 4. LEVERAGE-ADJUSTED RISK
+            leverage = analysis.get('leverage', self.current_position.get('leverage', 10))
+            leverage_risk_adjustment = min(1.0, 20.0 / leverage)  # Reduce size for higher leverage
             
-            # 3. Slippage Consideration
-            expected_slippage = self._estimate_slippage(base_size, current_price, analysis)
+            # 5. VOLATILITY-BASED ADJUSTMENT
+            volatility_adjustment = self._get_volatility_adjustment(analysis)
             
-            # Start with Kelly-optimized size
-            adjusted_size = kelly_size
+            # 6. MARKET REGIME ADJUSTMENT
+            regime_multiplier = self._get_regime_multiplier(analysis)
             
-            # Adjust based on confidence with diminishing returns
+            # 7. APPLY ALL ADJUSTMENTS
+            adjusted_size = min(base_size, kelly_size)
+            adjusted_size *= drawdown_reduction
+            adjusted_size *= leverage_risk_adjustment
+            adjusted_size *= volatility_adjustment
+            adjusted_size *= regime_multiplier
+            
+            # Confidence adjustment with diminishing returns
             confidence_multiplier = min(confidence * 1.2 + 0.3, 1.0)
             adjusted_size *= confidence_multiplier
             
-            # Adjust based on market volatility (higher vol = smaller size)
-            volatility = analysis.get('volatility', 0.02)
-            volatility_adjustment = max(0.3, 1.0 - (volatility - 0.02) * 15)
-            adjusted_size *= volatility_adjustment
+            # 8. TRANSACTION COST AND SLIPPAGE ADJUSTMENTS
+            transaction_costs = self._calculate_total_transaction_costs(adjusted_size, current_price, analysis)
+            expected_slippage = self._estimate_slippage(adjusted_size, current_price, analysis)
             
-            # Adjust based on market regime
-            regime = analysis.get('market_regime', 'unknown')
-            regime_multiplier = {
-                'trending': 1.0,     # Full size in trends
-                'ranging': 0.6,      # Reduced size in ranges
-                'volatile': 0.4,     # Much smaller in volatile markets
-                'unknown': 0.5       # Conservative for unknown
-            }.get(regime, 0.5)
-            adjusted_size *= regime_multiplier
+            cost_adjustment = max(0.7, 1.0 - (transaction_costs * 100))
+            slippage_adjustment = max(0.8, 1.0 - (expected_slippage * 50))
             
-            # Factor in transaction costs (reduce size if costs are high)
-            cost_adjustment = max(0.7, 1.0 - (transaction_costs * 100))  # Reduce size if costs > 1%
             adjusted_size *= cost_adjustment
-            
-            # Factor in expected slippage (reduce size if slippage is high)
-            slippage_adjustment = max(0.8, 1.0 - (expected_slippage * 50))  # Reduce if slippage > 2%
             adjusted_size *= slippage_adjustment
             
-            # Liquidity-based adjustment
-            liquidity_score = analysis.get('liquidity_score', 0.5)
-            liquidity_adjustment = min(1.0, 0.5 + liquidity_score)
-            adjusted_size *= liquidity_adjustment
+            # 9. HARD POSITION LIMITS
+            min_size = self._get_minimum_position_size()
+            max_size = self._get_maximum_position_size(account_balance, current_price)
             
-            # Ensure within risk limits using real-time balance
-            max_size = self.risk_config['max_position_size'] * current_balance / current_price
-            adjusted_size = min(adjusted_size, max_size)
+            final_size = np.clip(adjusted_size, min_size, max_size)
             
-            # For small accounts ($50-$500), ensure minimum viable position but don't exceed balance
-            if current_balance < 500:
-                min_position_value = min(10.0, current_balance * 0.1)  # 10% of small balance
-                min_viable_size = min_position_value / current_price
-                # Use larger of calculated size or minimum viable, but cap at max risk
-                adjusted_size = min(max(adjusted_size, min_viable_size), max_size)
+            # Apply portfolio risk budget constraint
+            max_position_value_by_budget = remaining_risk_budget
+            max_size_by_budget = max_position_value_by_budget / current_price
             
-            # Ensure minimum position size meets Binance requirements for BTCUSDT
-            min_btc_size = 0.001
-            adjusted_size = max(min_btc_size, adjusted_size)
+            if final_size * current_price > remaining_risk_budget:
+                logger.warning(f"Position would exceed remaining risk budget: ${final_size * current_price:.2f} > ${remaining_risk_budget:.2f}")
+                final_size = max(0, max_size_by_budget)
+                
+                # If even minimum position exceeds budget, reject
+                if final_size < min_size:
+                    logger.warning("Even minimum position would exceed portfolio risk budget")
+                    return 0.0
             
-            # Log detailed position sizing breakdown
-            logger.info("💰 Enhanced Position Sizing:")
-            logger.info(f"   Current Balance: ${current_balance:.2f}")
-            logger.info(f"   Available Balance: ${available_balance:.2f}")
-            logger.info(f"   Base Size: {base_size:.6f} → Final: {adjusted_size:.6f} BTC")
-            logger.info(f"   Kelly Optimal: {kelly_size:.6f} BTC")
-            logger.info(f"   Max Risk Size: {max_size:.6f} BTC ({self.risk_config['max_position_size']*100:.0f}% of balance)")
-            logger.info(f"   Confidence: {confidence:.3f} (mult: {confidence_multiplier:.3f})")
-            logger.info(f"   Volatility: {volatility:.4f} (adj: {volatility_adjustment:.3f})")
-            logger.info(f"   Market Regime: {regime} (mult: {regime_multiplier:.3f})")
-            logger.info(f"   Transaction Costs: {transaction_costs:.4f} (adj: {cost_adjustment:.3f})")
-            logger.info(f"   Expected Slippage: {expected_slippage:.4f} (adj: {slippage_adjustment:.3f})")
-            logger.info(f"   Liquidity Score: {liquidity_score:.3f} (adj: {liquidity_adjustment:.3f})")
+            # 10. LIQUIDATION SAFETY VALIDATION
+            if not self._validate_liquidation_safety(final_size, current_price, leverage):
+                logger.warning("Position would exceed liquidation safety threshold")
+                return 0.0
             
-            return adjusted_size
+            # 11. CONCENTRATION RISK CHECK
+            if not self._validate_concentration_limits(final_size, current_price):
+                logger.warning("Position would exceed concentration limits")
+                return 0.0
+            
+            # 12. CORRELATION RISK ASSESSMENT
+            if not self._validate_correlation_risk(final_size):
+                logger.warning("Position would increase correlation risk beyond limits")
+                final_size *= 0.5  # Reduce instead of blocking
+            
+            # Comprehensive logging
+            self._log_position_sizing_breakdown({
+                'account_balance': account_balance,
+                'base_size': base_size,
+                'kelly_size': kelly_size,
+                'final_size': final_size,
+                'current_drawdown': current_drawdown,
+                'drawdown_reduction': drawdown_reduction,
+                'leverage_adjustment': leverage_risk_adjustment,
+                'volatility_adjustment': volatility_adjustment,
+                'regime_multiplier': regime_multiplier,
+                'confidence_multiplier': confidence_multiplier,
+                'transaction_costs': transaction_costs,
+                'expected_slippage': expected_slippage,
+                'current_exposure': current_exposure,
+                'max_portfolio_risk': max_portfolio_risk
+            })
+            
+            return final_size
             
         except Exception as e:
-            logger.error(f"Error in position sizing: {e}")
-            # Fallback to conservative sizing
-            return max(0.001, base_size * 0.5)
+            logger.error(f"Critical error in position sizing: {e}")
+            # Emergency fallback - minimal position
+            return max(0.001, base_size * 0.1)
     
     def _calculate_kelly_position_size(self, analysis: Dict, confidence: float) -> float:
         """Calculate optimal position size using Kelly Criterion based on current Binance futures balance"""
@@ -808,6 +1008,189 @@ class EnhancedTradingService:
         except Exception as e:
             logger.error(f"Error estimating slippage: {e}")
             return 0.0002  # 0.02% fallback
+    
+    def _get_account_balance(self) -> float:
+        """Get current account balance from Binance futures"""
+        try:
+            if hasattr(self.binance_service, 'get_futures_account_balance'):
+                balance_info = self.binance_service.get_futures_account_balance()
+                return float(balance_info['totalWalletBalance'])
+            else:
+                account = self.binance_service.client.futures_account()
+                return float(account['totalWalletBalance'])
+        except Exception as e:
+            logger.error(f"Error getting account balance: {e}")
+            return 0.0
+    
+    def _calculate_current_exposure(self) -> float:
+        """Calculate total current exposure across all positions"""
+        try:
+            if hasattr(self.binance_service, 'get_futures_positions'):
+                positions = self.binance_service.get_futures_positions()
+            else:
+                positions = self.binance_service.client.futures_position_information()
+            
+            total_exposure = 0.0
+            for position in positions:
+                if float(position['positionAmt']) != 0:
+                    notional = abs(float(position['notional']))
+                    total_exposure += notional
+            
+            return total_exposure
+        except Exception as e:
+            logger.error(f"Error calculating current exposure: {e}")
+            return 0.0
+    
+    def _calculate_current_drawdown(self) -> float:
+        """Calculate current drawdown from peak equity"""
+        try:
+            current_balance = self._get_account_balance()
+            
+            # Initialize or update peak equity
+            if not hasattr(self, '_peak_equity'):
+                self._peak_equity = current_balance
+            
+            self._peak_equity = max(self._peak_equity, current_balance)
+            
+            if self._peak_equity <= 0:
+                return 0.0
+            
+            drawdown = (self._peak_equity - current_balance) / self._peak_equity
+            return max(0.0, drawdown)
+            
+        except Exception as e:
+            logger.error(f"Error calculating drawdown: {e}")
+            return 0.0
+    
+    def _get_volatility_adjustment(self, analysis: Dict) -> float:
+        """Calculate position adjustment based on market volatility"""
+        try:
+            volatility = analysis.get('volatility', 0.02)
+            base_vol = 0.02  # 2% daily volatility baseline
+            
+            if volatility <= base_vol:
+                return 1.0
+            
+            # Reduce position size for higher volatility
+            vol_ratio = volatility / base_vol
+            adjustment = max(0.3, 1.0 / (1.0 + (vol_ratio - 1.0) * 2))
+            
+            return adjustment
+            
+        except Exception as e:
+            logger.error(f"Error calculating volatility adjustment: {e}")
+            return 0.5
+    
+    def _get_regime_multiplier(self, analysis: Dict) -> float:
+        """Get position size multiplier based on market regime"""
+        try:
+            regime = analysis.get('market_regime', 'unknown')
+            
+            regime_multipliers = {
+                'trending': 1.0,     # Full size in clear trends
+                'ranging': 0.6,      # Reduced size in sideways markets
+                'volatile': 0.4,     # Much smaller in volatile/uncertain markets
+                'bear_market': 0.3,  # Very conservative in bear markets
+                'unknown': 0.5       # Conservative for unknown regimes
+            }
+            
+            return regime_multipliers.get(regime, 0.5)
+            
+        except Exception as e:
+            logger.error(f"Error getting regime multiplier: {e}")
+            return 0.5
+    
+    def _get_minimum_position_size(self) -> float:
+        """Get minimum viable position size"""
+        return 0.001  # Binance minimum for BTCUSDT futures
+    
+    def _get_maximum_position_size(self, account_balance: float, current_price: float = None) -> float:
+        """Get maximum allowed position size based on risk limits"""
+        try:
+            max_position_percentage = self.risk_config.get('max_position_size', 0.20)
+            price = current_price or 115000  # Use provided price or fallback
+            
+            max_position_value = account_balance * max_position_percentage
+            return max_position_value / price
+            
+        except Exception as e:
+            logger.error(f"Error calculating maximum position size: {e}")
+            return 0.001
+    
+    def _validate_liquidation_safety(self, size: float, price: float, leverage: float) -> bool:
+        """Validate that position won't risk liquidation"""
+        try:
+            account_balance = self._get_account_balance()
+            position_value = size * price
+            required_margin = position_value / leverage
+            
+            # Ensure we have 3x the required margin as safety buffer
+            safety_margin = required_margin * 3
+            
+            return account_balance >= safety_margin
+            
+        except Exception as e:
+            logger.error(f"Error validating liquidation safety: {e}")
+            return False
+    
+    def _validate_concentration_limits(self, size: float, price: float) -> bool:
+        """Validate position doesn't exceed concentration limits"""
+        try:
+            account_balance = self._get_account_balance()
+            position_value = size * price
+            
+            # No single position should exceed 30% of account
+            max_concentration = account_balance * 0.30
+            
+            return position_value <= max_concentration
+            
+        except Exception as e:
+            logger.error(f"Error validating concentration limits: {e}")
+            return False
+    
+    def _validate_correlation_risk(self, size: float) -> bool:
+        """Validate that position doesn't increase correlation risk excessively"""
+        try:
+            current_exposure = self._calculate_current_exposure()
+            account_balance = self._get_account_balance()
+            
+            # If total exposure would exceed 50% of account, flag correlation risk
+            max_correlation_exposure = account_balance * 0.50
+            
+            return current_exposure <= max_correlation_exposure
+            
+        except Exception as e:
+            logger.error(f"Error validating correlation risk: {e}")
+            return True
+    
+    def _log_position_sizing_breakdown(self, metrics: Dict) -> None:
+        """Log detailed position sizing breakdown for analysis"""
+        try:
+            logger.info("🎯 COMPREHENSIVE POSITION SIZING ANALYSIS:")
+            logger.info(f"   💰 Account Balance: ${metrics['account_balance']:.2f}")
+            logger.info(f"   📊 Base → Kelly → Final: {metrics['base_size']:.6f} → {metrics['kelly_size']:.6f} → {metrics['final_size']:.6f} BTC")
+            
+            # Risk adjustments
+            logger.info(f"   🔻 Drawdown: {metrics['current_drawdown']:.1%} (reduction: {1-metrics['drawdown_reduction']:.1%})")
+            logger.info(f"   ⚖️  Leverage Adj: {metrics['leverage_adjustment']:.3f}")
+            logger.info(f"   📈 Volatility Adj: {metrics['volatility_adjustment']:.3f}")
+            logger.info(f"   🌊 Regime Mult: {metrics['regime_multiplier']:.3f}")
+            logger.info(f"   🎯 Confidence Mult: {metrics['confidence_multiplier']:.3f}")
+            
+            # Costs
+            logger.info(f"   💸 Transaction Costs: {metrics['transaction_costs']:.4f}")
+            logger.info(f"   🌊 Expected Slippage: {metrics['expected_slippage']:.4f}")
+            
+            # Risk limits
+            logger.info(f"   🔥 Current Exposure: ${metrics['current_exposure']:.2f} / ${metrics['max_portfolio_risk']:.2f} max")
+            
+            # Final validation
+            position_value = metrics['final_size'] * 115000
+            risk_percentage = (position_value / metrics['account_balance']) * 100
+            logger.info(f"   ✅ Final Position Risk: {risk_percentage:.1f}% of account")
+            
+        except Exception as e:
+            logger.error(f"Error logging position sizing breakdown: {e}")
     
     async def _set_position_risk_management(self, symbol: str, entry_price: float, side: str):
         """Set stop loss and take profit orders"""
