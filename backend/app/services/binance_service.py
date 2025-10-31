@@ -39,6 +39,48 @@ class BinanceService:
         self.default_leverage = 10  # Default leverage for futures
         self.margin_type = 'CROSSED'  # CROSSED or ISOLATED
         
+    @classmethod
+    def create_secure(cls, testnet: bool = False):
+        """
+        Create BinanceService instance using secure credential manager
+        Preferred method for production use
+        """
+        try:
+            from app.security.credential_manager import get_credential_manager
+            
+            credential_manager = get_credential_manager()
+            credentials = credential_manager.get_binance_credentials()
+            
+            logger.info("Created BinanceService with secure encrypted credentials")
+            return cls(
+                api_key=credentials['api_key'],
+                api_secret=credentials['api_secret'],
+                testnet=credentials.get('testnet', testnet)
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to create secure BinanceService: {e}")
+            raise ValueError(f"Unable to load secure credentials: {e}")
+    
+    @classmethod
+    def create_from_env(cls, testnet: bool = False):
+        """
+        Create BinanceService from environment variables (fallback method)
+        Use only when secure credentials are not available
+        """
+        from app.utils.env_loader import load_credentials
+        
+        credentials = load_credentials()
+        if not credentials.get('api_key') or not credentials.get('api_secret'):
+            raise ValueError("Binance API credentials not found in environment")
+        
+        logger.warning("Created BinanceService with plain text credentials - UPGRADE TO SECURE!")
+        return cls(
+            api_key=credentials['api_key'],
+            api_secret=credentials['api_secret'],
+            testnet=credentials.get('testnet', testnet)
+        )
+        
     def _retry_api_call(self, func, *args, **kwargs):
         """Wrapper to retry API calls with exponential backoff"""
         last_exception = None

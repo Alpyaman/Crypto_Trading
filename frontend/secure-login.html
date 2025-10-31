@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Trading - Secure Login</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            min-width: 400px;
+            max-width: 500px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .login-header h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .login-header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .login-button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+
+        .login-button:hover {
+            opacity: 0.9;
+        }
+
+        .login-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #c33;
+        }
+
+        .success-message {
+            background: #efe;
+            color: #3c3;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3c3;
+        }
+
+        .security-info {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .security-info h4 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .security-features {
+            list-style: none;
+        }
+
+        .security-features li {
+            margin-bottom: 5px;
+            position: relative;
+            padding-left: 15px;
+        }
+
+        .security-features li:before {
+            content: "🔒";
+            position: absolute;
+            left: 0;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>🔐 Secure Trading Login</h1>
+            <p>Access your encrypted crypto trading platform</p>
+        </div>
+
+        <form id="loginForm">
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+            <div id="successMessage" class="success-message" style="display: none;"></div>
+
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+
+            <button type="submit" class="login-button" id="loginButton">
+                Sign In Securely
+            </button>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Authenticating...</p>
+            </div>
+        </form>
+
+        <div class="security-info">
+            <h4>🛡️ Security Features</h4>
+            <ul class="security-features">
+                <li>Encrypted API credentials</li>
+                <li>JWT token authentication</li>
+                <li>Rate limiting protection</li>
+                <li>Secure HTTPS communication</li>
+                <li>Session timeout controls</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        class SecureAuth {
+            constructor() {
+                this.token = localStorage.getItem('access_token');
+                this.refreshToken = localStorage.getItem('refresh_token');
+                this.baseUrl = '/api';
+                
+                this.initializeEventListeners();
+                this.checkExistingAuth();
+            }
+
+            initializeEventListeners() {
+                document.getElementById('loginForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.handleLogin();
+                });
+            }
+
+            async checkExistingAuth() {
+                if (this.token) {
+                    try {
+                        const response = await fetch(`${this.baseUrl}/auth/me`, {
+                            headers: {
+                                'Authorization': `Bearer ${this.token}`
+                            }
+                        });
+
+                        if (response.ok) {
+                            this.redirectToDashboard();
+                        } else {
+                            // Token invalid, try refresh
+                            await this.refreshAccessToken();
+                        }
+                    } catch (error) {
+                        console.log('Auth check failed:', error);
+                        this.clearTokens();
+                    }
+                }
+            }
+
+            async handleLogin() {
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+
+                if (!username || !password) {
+                    this.showError('Please enter both username and password');
+                    return;
+                }
+
+                this.showLoading(true);
+                this.clearMessages();
+
+                try {
+                    const response = await fetch(`${this.baseUrl}/auth/login`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            username: username,
+                            password: password
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        // Store tokens
+                        localStorage.setItem('access_token', data.access_token);
+                        localStorage.setItem('refresh_token', data.refresh_token);
+                        localStorage.setItem('user_info', JSON.stringify(data.user));
+
+                        this.showSuccess('Login successful! Redirecting...');
+                        
+                        setTimeout(() => {
+                            this.redirectToDashboard();
+                        }, 1500);
+
+                    } else {
+                        this.showError(data.detail || 'Login failed');
+                    }
+
+                } catch (error) {
+                    console.error('Login error:', error);
+                    this.showError('Network error. Please check your connection.');
+                } finally {
+                    this.showLoading(false);
+                }
+            }
+
+            async refreshAccessToken() {
+                if (!this.refreshToken) {
+                    return false;
+                }
+
+                try {
+                    const response = await fetch(`${this.baseUrl}/auth/refresh`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            refresh_token: this.refreshToken
+                        })
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        localStorage.setItem('access_token', data.access_token);
+                        this.token = data.access_token;
+                        return true;
+                    } else {
+                        this.clearTokens();
+                        return false;
+                    }
+
+                } catch (error) {
+                    console.error('Token refresh failed:', error);
+                    this.clearTokens();
+                    return false;
+                }
+            }
+
+            clearTokens() {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+                localStorage.removeItem('user_info');
+                this.token = null;
+                this.refreshToken = null;
+            }
+
+            redirectToDashboard() {
+                // Redirect to main dashboard
+                window.location.href = '/enhanced-dashboard.html';
+            }
+
+            showError(message) {
+                const errorDiv = document.getElementById('errorMessage');
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+                setTimeout(() => {
+                    errorDiv.style.display = 'none';
+                }, 5000);
+            }
+
+            showSuccess(message) {
+                const successDiv = document.getElementById('successMessage');
+                successDiv.textContent = message;
+                successDiv.style.display = 'block';
+            }
+
+            clearMessages() {
+                document.getElementById('errorMessage').style.display = 'none';
+                document.getElementById('successMessage').style.display = 'none';
+            }
+
+            showLoading(show) {
+                const loadingDiv = document.getElementById('loading');
+                const button = document.getElementById('loginButton');
+                
+                if (show) {
+                    loadingDiv.style.display = 'block';
+                    button.disabled = true;
+                } else {
+                    loadingDiv.style.display = 'none';
+                    button.disabled = false;
+                }
+            }
+        }
+
+        // Initialize secure authentication
+        document.addEventListener('DOMContentLoaded', () => {
+            new SecureAuth();
+        });
+
+        // Add default admin credentials hint
+        document.addEventListener('DOMContentLoaded', () => {
+            const usernameField = document.getElementById('username');
+            const passwordField = document.getElementById('password');
+            
+            // Auto-fill for development (remove in production)
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                usernameField.placeholder = 'Default: admin';
+                passwordField.placeholder = 'Default: admin123';
+            }
+        });
+    </script>
+</body>
+</html>

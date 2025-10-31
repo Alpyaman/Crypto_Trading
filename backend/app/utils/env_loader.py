@@ -170,12 +170,41 @@ def validate_config() -> list:
 
 
 def load_credentials() -> dict:
-    """Load Binance API credentials from environment"""
+    """
+    Load Binance API credentials with security enhancement
+    Attempts to use secure credential manager first, falls back to plain text
+    """
+    try:
+        # Try to use secure credential manager
+        from app.security.credential_manager import get_credential_manager
+        credential_manager = get_credential_manager()
+        
+        if credential_manager.validate_credentials():
+            logger.info("Using secure encrypted credentials")
+            return credential_manager.get_binance_credentials()
+            
+    except ImportError:
+        logger.warning("Secure credential manager not available")
+    except Exception as e:
+        logger.warning(f"Secure credential manager failed: {e}")
+    
+    # Fallback to plain text credentials
+    logger.warning("Falling back to plain text credentials - UPGRADE TO ENCRYPTED!")
     return {
-        'BINANCE_API_KEY': os.getenv('BINANCE_API_KEY'),
-        'BINANCE_API_SECRET': os.getenv('BINANCE_API_SECRET'),
-        'BINANCE_TESTNET': env_loader.get_bool('BINANCE_TESTNET', False)
+        'api_key': os.getenv('BINANCE_API_KEY'),
+        'api_secret': os.getenv('BINANCE_API_SECRET'),
+        'testnet': env_loader.get_bool('BINANCE_TESTNET', False)
     }
+
+
+def secure_load_credentials() -> dict:
+    """
+    Load credentials using secure credential manager (preferred method)
+    Raises exception if secure credentials are not available
+    """
+    from app.security.credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+    return credential_manager.get_binance_credentials()
 
 
 # Auto-load on import
