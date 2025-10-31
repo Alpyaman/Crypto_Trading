@@ -1,5 +1,5 @@
-// Crypto Trading AI Dashboard - Main JavaScript
-class TradingDashboard {
+// Crypto Trading AI Dashboard - Optimized Main JavaScript
+class OptimizedDashboard {
     constructor() {
         this.apiUrl = '';  // Use relative URLs since served from same origin
         this.currentSymbol = 'BTCUSDT';
@@ -7,15 +7,85 @@ class TradingDashboard {
         this.updateInterval = 5000;
         this.charts = {};
         this.activeIntervals = [];
+        
+        // Performance optimization properties
+        this.requestQueue = new Map();
+        this.updateThrottlers = new Map();
+        this.pendingChartUpdate = false;
+        this.lastChartUpdate = 0;
+        this.chartUpdateDelay = 16; // ~60fps
+        this.isVisible = !document.hidden;
+        this.errorBoundaries = new Map();
+        
+        // Websocket connection pooling
+        this.websocketPool = new Map();
+        this.maxWebsocketConnections = 3;
+        this.websocketReconnectAttempts = new Map();
+        this.maxReconnectAttempts = 5;
+        
+        // Data caching for performance
+        this.dataCache = new Map();
+        this.cacheTimeout = 30000; // 30 seconds
+        
+        // Initialize visibility API
+        this.initVisibilityListener();
         this.init();
     }
 
     init() {
         this.initializeNavigation();
         this.initializeCharts();
-        this.startDataUpdates();
+        this.startOptimizedDataUpdates();
         this.initializeEventListeners();
         this.loadInitialData();
+        this.startChartUpdateLoop();
+    }
+
+    // Visibility API for performance optimization
+    initVisibilityListener() {
+        document.addEventListener('visibilitychange', () => {
+            this.isVisible = !document.hidden;
+            console.log(`📱 Tab visibility changed: ${this.isVisible ? 'visible' : 'hidden'}`);
+            
+            if (this.isVisible) {
+                // Resume normal update intervals when tab becomes visible
+                this.adjustUpdateIntervals(false);
+                // Trigger immediate update when becoming visible
+                this.safeExecute('immediate-update', () => {
+                    this.updateSymbolData();
+                });
+            } else {
+                // Reduce update frequency when tab is hidden
+                this.adjustUpdateIntervals(true);
+            }
+        });
+    }
+
+    // Adjust update intervals based on visibility
+    adjustUpdateIntervals(isHidden) {
+        const multiplier = isHidden ? 6 : 1; // 6x slower when hidden (30s vs 5s)
+        
+        this.updateThrottlers.forEach((interval, key) => {
+            if (key.includes('market') || key.includes('technical')) {
+                clearInterval(interval);
+                const baseInterval = key.includes('market') ? 5000 : 10000;
+                const newInterval = baseInterval * multiplier;
+                
+                const throttler = setInterval(() => {
+                    if (this.isVisible || isHidden) { // Always update if hidden check
+                        this.safeExecute(key, () => {
+                            if (key.includes('market')) {
+                                this.throttledUpdateMarketData();
+                            } else if (key.includes('technical')) {
+                                this.throttledUpdateTechnicalIndicators();
+                            }
+                        });
+                    }
+                }, newInterval);
+                
+                this.updateThrottlers.set(key, throttler);
+            }
+        });
     }
 
     // Navigation System
@@ -514,11 +584,10 @@ class TradingDashboard {
             if (marketRegimeElement) marketRegimeElement.textContent = 'Trending'; // Demo value
             if (volatilityElement) volatilityElement.textContent = 'Medium'; // Demo value
 
-            // Update charts with error handling
-            try {
-                this.updatePriceChart(marketData.priceHistory || []);
-            } catch (chartError) {
-                console.error('📊 Chart update failed:', chartError);
+            // Schedule optimized chart update instead of immediate update
+            if (marketData.priceHistory && marketData.priceHistory.length > 0) {
+                this.lastPriceHistory = marketData.priceHistory;
+                this.scheduleChartUpdate('price');
             }
             
             console.log('✅ Market data updated successfully');
@@ -847,6 +916,93 @@ class TradingDashboard {
         this.charts.performance.data.datasets[0].data = values;
         this.charts.performance.update('none');
     }
+    
+    // Optimized chart update methods
+    updatePriceChartOptimized() {
+        if (!this.charts.price || !this.lastPriceHistory || !this.lastPriceHistory.length) {
+            console.log('⚠️ Cannot update price chart: missing chart or data');
+            return;
+        }
+
+        const priceHistory = this.lastPriceHistory;
+        console.log('📈 Updating price chart (optimized) with', priceHistory.length, 'data points');
+
+        // Format data for chart with timeframe-specific labels
+        const labels = priceHistory.map(item => {
+            const date = new Date(item.timestamp);
+            
+            // Different label formats based on timeframe
+            if (this.currentTimeframe === '1h') {
+                return date.toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: false 
+                });
+            } else if (this.currentTimeframe === '4h') {
+                return date.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric',
+                    hour: '2-digit'
+                });
+            } else { // 1d
+                return date.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric'
+                });
+            }
+        });
+        
+        const prices = priceHistory.map(item => parseFloat(item.price));
+
+        // Only update if data actually changed
+        const currentDataLength = this.charts.price.data.labels.length;
+        const newDataLength = labels.length;
+        
+        if (currentDataLength === newDataLength && newDataLength > 0) {
+            const lastCurrentPrice = this.charts.price.data.datasets[0].data[currentDataLength - 1];
+            const lastNewPrice = prices[newDataLength - 1];
+            
+            if (Math.abs(lastCurrentPrice - lastNewPrice) < 0.01) {
+                console.log('📊 Chart data unchanged, skipping update');
+                return;
+            }
+        }
+
+        // Update chart data efficiently
+        this.charts.price.data.labels = labels;
+        this.charts.price.data.datasets[0].data = prices;
+        this.charts.price.data.datasets[0].label = `${this.currentSymbol} Price (${this.currentTimeframe.toUpperCase()})`;
+        
+        // Use 'none' animation mode for better performance
+        this.charts.price.update('none');
+        
+        console.log('✅ Price chart updated successfully (optimized)');
+    }
+    
+    updatePerformanceChartOptimized() {
+        if (!this.charts.performance || !this.lastPerformanceData || !this.lastPerformanceData.length) {
+            return;
+        }
+
+        const performanceData = this.lastPerformanceData;
+        const labels = performanceData.map(item => new Date(item.timestamp).toLocaleDateString());
+        const values = performanceData.map(item => item.value);
+
+        // Check if data changed
+        const currentDataLength = this.charts.performance.data.labels.length;
+        if (currentDataLength === labels.length && labels.length > 0) {
+            const lastCurrentValue = this.charts.performance.data.datasets[0].data[currentDataLength - 1];
+            const lastNewValue = values[labels.length - 1];
+            
+            if (lastCurrentValue === lastNewValue) {
+                return; // No change, skip update
+            }
+        }
+
+        this.charts.performance.data.labels = labels;
+        this.charts.performance.data.datasets[0].data = values;
+        this.charts.performance.update('none');
+    }
 
     updateChartTimeframe(timeframe) {
         console.log(`📊 Updating chart timeframe to: ${timeframe}`);
@@ -1137,31 +1293,320 @@ class TradingDashboard {
         }
     }
 
-    // Data Updates
-    startDataUpdates() {
-        // Update market data every 5 seconds
-        const marketInterval = setInterval(() => {
-            this.updateMarketData();
-            this.updateTechnicalIndicators();
-        }, this.updateInterval);
-
-        // Update system status every 10 seconds
-        const systemInterval = setInterval(() => {
-            this.updateSystemStatus();
+    // Optimized Data Updates with throttling and visibility awareness
+    startOptimizedDataUpdates() {
+        console.log('🚀 Starting optimized data updates...');
+        
+        // Throttle updates based on visibility
+        const updateInterval = this.isVisible ? 5000 : 30000;
+        
+        this.scheduleUpdate('market-data', () => {
+            this.throttledUpdateMarketData();
+        }, updateInterval);
+        
+        this.scheduleUpdate('technical-indicators', () => {
+            this.throttledUpdateTechnicalIndicators();
+        }, updateInterval);
+        
+        this.scheduleUpdate('system-status', () => {
+            this.throttledUpdateSystemStatus();
         }, 10000);
-
-        // Update account balance every 30 seconds
-        const balanceInterval = setInterval(() => {
-            this.updateAccountBalance();
+        
+        this.scheduleUpdate('account-balance', () => {
+            this.throttledUpdateAccountBalance();
         }, 30000);
-
-        this.activeIntervals.push(marketInterval, systemInterval, balanceInterval);
+    }
+    
+    // Schedule updates with throttling
+    scheduleUpdate(key, callback, interval) {
+        if (this.updateThrottlers.has(key)) {
+            clearInterval(this.updateThrottlers.get(key));
+        }
+        
+        const throttler = setInterval(() => {
+            if (this.isVisible) {
+                this.safeExecute(key, callback);
+            }
+        }, interval);
+        
+        this.updateThrottlers.set(key, throttler);
+        this.activeIntervals.push(throttler);
+    }
+    
+    // Safe execution with error boundaries
+    safeExecute(operation, callback) {
+        try {
+            // Prevent duplicate requests
+            if (this.requestQueue.has(operation)) {
+                console.log(`⏳ Skipping ${operation} - request already in progress`);
+                return;
+            }
+            
+            this.requestQueue.set(operation, true);
+            
+            const result = callback();
+            
+            // Handle promises
+            if (result && typeof result.then === 'function') {
+                result
+                    .then(() => {
+                        this.requestQueue.delete(operation);
+                    })
+                    .catch((error) => {
+                        this.handleError(operation, error);
+                        this.requestQueue.delete(operation);
+                    });
+            } else {
+                this.requestQueue.delete(operation);
+            }
+            
+        } catch (error) {
+            this.handleError(operation, error);
+            this.requestQueue.delete(operation);
+        }
+    }
+    
+    // Error handling with boundaries
+    handleError(operation, error) {
+        console.error(`❌ Error in ${operation}:`, error);
+        
+        // Track error frequency
+        const errorKey = `error-${operation}`;
+        const errorCount = this.errorBoundaries.get(errorKey) || 0;
+        this.errorBoundaries.set(errorKey, errorCount + 1);
+        
+        // Circuit breaker pattern - disable operation if too many errors
+        if (errorCount > 5) {
+            console.warn(`🚨 Circuit breaker activated for ${operation} - too many errors`);
+            this.updateThrottlers.delete(operation);
+        }
+    }
+    
+    // Websocket connection pooling
+    getWebsocketConnection(endpoint) {
+        if (this.websocketPool.has(endpoint)) {
+            const ws = this.websocketPool.get(endpoint);
+            if (ws.readyState === WebSocket.OPEN) {
+                return ws;
+            } else {
+                this.websocketPool.delete(endpoint);
+            }
+        }
+        
+        if (this.websocketPool.size >= this.maxWebsocketConnections) {
+            console.warn('🔌 Maximum websocket connections reached');
+            return null;
+        }
+        
+        return this.createWebsocketConnection(endpoint);
+    }
+    
+    createWebsocketConnection(endpoint) {
+        const wsUrl = `ws://${window.location.host}${endpoint}`;
+        const ws = new WebSocket(wsUrl);
+        
+        ws.onopen = () => {
+            console.log(`🔌 Websocket connected: ${endpoint}`);
+            this.websocketReconnectAttempts.set(endpoint, 0);
+            this.websocketPool.set(endpoint, ws);
+        };
+        
+        ws.onclose = () => {
+            console.log(`🔌 Websocket closed: ${endpoint}`);
+            this.websocketPool.delete(endpoint);
+            this.handleWebsocketReconnect(endpoint);
+        };
+        
+        ws.onerror = (error) => {
+            console.error(`❌ Websocket error: ${endpoint}`, error);
+            this.handleError(`websocket-${endpoint}`, error);
+        };
+        
+        return ws;
+    }
+    
+    handleWebsocketReconnect(endpoint) {
+        const attempts = this.websocketReconnectAttempts.get(endpoint) || 0;
+        
+        if (attempts < this.maxReconnectAttempts && this.isVisible) {
+            const delay = Math.min(1000 * Math.pow(2, attempts), 30000); // Exponential backoff
+            
+            setTimeout(() => {
+                console.log(`🔄 Attempting websocket reconnect: ${endpoint} (attempt ${attempts + 1})`);
+                this.websocketReconnectAttempts.set(endpoint, attempts + 1);
+                this.createWebsocketConnection(endpoint);
+            }, delay);
+        }
+    }
+    
+    // Data caching for performance
+    getCachedData(key) {
+        const cached = this.dataCache.get(key);
+        if (cached && (Date.now() - cached.timestamp) < this.cacheTimeout) {
+            console.log(`📦 Using cached data for: ${key}`);
+            return cached.data;
+        }
+        this.dataCache.delete(key);
+        return null;
+    }
+    
+    setCachedData(key, data) {
+        this.dataCache.set(key, {
+            data: data,
+            timestamp: Date.now()
+        });
+    }
+    
+    // Performance monitoring
+    measurePerformance(operation, callback) {
+        const startTime = performance.now();
+        
+        const result = callback();
+        
+        if (result && typeof result.then === 'function') {
+            return result.then((res) => {
+                const endTime = performance.now();
+                console.log(`⚡ ${operation} completed in ${(endTime - startTime).toFixed(2)}ms`);
+                return res;
+            });
+        } else {
+            const endTime = performance.now();
+            console.log(`⚡ ${operation} completed in ${(endTime - startTime).toFixed(2)}ms`);
+            return result;
+        }
     }
 
-    // Symbol Updates
+    // Symbol Updates with throttling
     async updateSymbolData() {
-        await this.updateMarketData();
-        await this.updateTechnicalIndicators();
+        await this.throttledUpdateMarketData();
+        await this.throttledUpdateTechnicalIndicators();
+    }
+    
+    // Throttled update methods with caching
+    async throttledUpdateMarketData() {
+        const cacheKey = `market-data-${this.currentSymbol}-${this.currentTimeframe}`;
+        const cached = this.getCachedData(cacheKey);
+        
+        if (cached) {
+            this.updateMarketDataFromCache(cached);
+            return cached;
+        }
+        
+        return this.measurePerformance('market-data-fetch', () => {
+            return this.safeExecute('market-data-fetch', async () => {
+                const result = await this.updateMarketData();
+                this.setCachedData(cacheKey, result);
+                return result;
+            });
+        });
+    }
+    
+    async throttledUpdateTechnicalIndicators() {
+        const cacheKey = `technical-indicators-${this.currentSymbol}`;
+        const cached = this.getCachedData(cacheKey);
+        
+        if (cached) {
+            return cached;
+        }
+        
+        return this.measurePerformance('technical-indicators-fetch', () => {
+            return this.safeExecute('technical-indicators-fetch', async () => {
+                const result = await this.updateTechnicalIndicators();
+                this.setCachedData(cacheKey, result);
+                return result;
+            });
+        });
+    }
+    
+    async throttledUpdateSystemStatus() {
+        return this.measurePerformance('system-status-fetch', () => {
+            return this.safeExecute('system-status-fetch', () => this.updateSystemStatus());
+        });
+    }
+    
+    async throttledUpdateAccountBalance() {
+        const cacheKey = 'account-balance';
+        const cached = this.getCachedData(cacheKey);
+        
+        if (cached) {
+            return cached;
+        }
+        
+        return this.measurePerformance('account-balance-fetch', () => {
+            return this.safeExecute('account-balance-fetch', async () => {
+                const result = await this.updateAccountBalance();
+                this.setCachedData(cacheKey, result);
+                return result;
+            });
+        });
+    }
+    
+    // Update market data from cache
+    updateMarketDataFromCache(cachedData) {
+        try {
+            if (cachedData.price) {
+                const currentPriceElement = document.getElementById('current-price');
+                if (currentPriceElement) {
+                    currentPriceElement.textContent = `$${cachedData.price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                }
+            }
+            
+            if (cachedData.change !== undefined) {
+                const changeElement = document.getElementById('price-change');
+                if (changeElement) {
+                    changeElement.textContent = `${cachedData.change >= 0 ? '+' : ''}${cachedData.change.toFixed(2)}%`;
+                    changeElement.className = `price-change ${cachedData.change >= 0 ? 'positive' : 'negative'}`;
+                }
+            }
+            
+            console.log('📦 Updated UI from cached market data');
+        } catch (error) {
+            console.error('❌ Error updating from cached data:', error);
+        }
+    }
+    
+    // Optimized chart updates using requestAnimationFrame
+    startChartUpdateLoop() {
+        const chartUpdateLoop = () => {
+            const now = performance.now();
+            
+            if (this.pendingChartUpdate && (now - this.lastChartUpdate) >= this.chartUpdateDelay) {
+                this.updateChartImmediate();
+                this.pendingChartUpdate = false;
+                this.lastChartUpdate = now;
+            }
+            
+            requestAnimationFrame(chartUpdateLoop);
+        };
+        
+        requestAnimationFrame(chartUpdateLoop);
+    }
+    
+    // Schedule chart update (non-blocking)
+    scheduleChartUpdate(chartType = 'all') {
+        if (!this.pendingChartUpdate) {
+            this.pendingChartUpdate = true;
+            this.pendingChartType = chartType;
+        }
+    }
+    
+    // Immediate chart update execution
+    updateChartImmediate() {
+        if (!this.isVisible) return; // Skip if tab not visible
+        
+        try {
+            // Update only if data has changed
+            if (this.pendingChartType === 'price' || this.pendingChartType === 'all') {
+                this.updatePriceChartOptimized();
+            }
+            
+            if (this.pendingChartType === 'performance' || this.pendingChartType === 'all') {
+                this.updatePerformanceChartOptimized();
+            }
+            
+        } catch (error) {
+            console.error('❌ Chart update error:', error);
+        }
     }
 
     // Utility Functions
@@ -1215,10 +1660,34 @@ class TradingDashboard {
         }).format(amount);
     }
 
-    // Cleanup
+    // Enhanced cleanup
     cleanup() {
+        // Clear all active intervals
         this.activeIntervals.forEach(interval => clearInterval(interval));
         this.activeIntervals = [];
+        
+        // Clear throttlers
+        this.updateThrottlers.forEach(interval => clearInterval(interval));
+        this.updateThrottlers.clear();
+        
+        // Clear request queue
+        this.requestQueue.clear();
+        
+        // Reset error boundaries
+        this.errorBoundaries.clear();
+        
+        // Close websocket connections
+        this.websocketPool.forEach((ws, endpoint) => {
+            console.log(`🔌 Closing websocket: ${endpoint}`);
+            ws.close();
+        });
+        this.websocketPool.clear();
+        this.websocketReconnectAttempts.clear();
+        
+        // Clear data cache
+        this.dataCache.clear();
+        
+        console.log('🧹 Optimized dashboard cleanup completed');
     }
 }
 
@@ -1243,9 +1712,9 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Initialize dashboard when DOM is loaded
+// Initialize optimized dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    window.dashboard = new TradingDashboard();
+    window.dashboard = new OptimizedDashboard();
     
     // Initialize database dashboard
     if (typeof DatabaseDashboard !== 'undefined') {

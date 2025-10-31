@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Performance Testing</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .performance-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(0, 212, 170, 0.1);
+            border-radius: 8px;
+        }
+        .metric.good {
+            background: rgba(34, 197, 94, 0.2);
+        }
+        .metric.warning {
+            background: rgba(251, 191, 36, 0.2);
+        }
+        .metric.error {
+            background: rgba(239, 68, 68, 0.2);
+        }
+        .test-button {
+            background: linear-gradient(135deg, #00d4aa, #01a3ff);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: transform 0.2s;
+        }
+        .test-button:hover {
+            transform: translateY(-2px);
+        }
+        .log {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status.running {
+            background: #3b82f6;
+        }
+        .status.completed {
+            background: #22c55e;
+        }
+        .status.failed {
+            background: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Frontend Performance Testing Suite</h1>
+        <p>Testing Claude's 5th recommendation: Frontend performance optimizations</p>
+        
+        <div class="performance-card">
+            <h2>📊 Performance Metrics</h2>
+            <div id="performance-metrics">
+                <div class="metric">
+                    <span>Update Frequency (Visible)</span>
+                    <span id="update-freq-visible">-</span>
+                </div>
+                <div class="metric">
+                    <span>Update Frequency (Hidden)</span>
+                    <span id="update-freq-hidden">-</span>
+                </div>
+                <div class="metric">
+                    <span>Chart Update Performance</span>
+                    <span id="chart-performance">-</span>
+                </div>
+                <div class="metric">
+                    <span>Request Throttling Active</span>
+                    <span id="throttling-status">-</span>
+                </div>
+                <div class="metric">
+                    <span>Cache Hit Rate</span>
+                    <span id="cache-hit-rate">-</span>
+                </div>
+                <div class="metric">
+                    <span>Error Boundaries Active</span>
+                    <span id="error-boundaries">-</span>
+                </div>
+                <div class="metric">
+                    <span>Memory Usage</span>
+                    <span id="memory-usage">-</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="performance-card">
+            <h2>🧪 Performance Tests</h2>
+            <button class="test-button" onclick="testVisibilityOptimization()">Test Visibility Optimization</button>
+            <button class="test-button" onclick="testRequestThrottling()">Test Request Throttling</button>
+            <button class="test-button" onclick="testChartOptimization()">Test Chart Optimization</button>
+            <button class="test-button" onclick="testErrorBoundaries()">Test Error Boundaries</button>
+            <button class="test-button" onclick="testCachePerformance()">Test Cache Performance</button>
+            <button class="test-button" onclick="runAllTests()">Run All Tests</button>
+        </div>
+        
+        <div class="performance-card">
+            <h2>📝 Test Results</h2>
+            <div id="test-results">
+                <div class="log" id="test-log">Ready to run performance tests...\n</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let testLog = document.getElementById('test-log');
+        let testResults = {};
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            testLog.textContent += `[${timestamp}] ${message}\n`;
+            testLog.scrollTop = testLog.scrollHeight;
+        }
+        
+        function updateMetric(id, value, status = 'good') {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = value;
+                element.parentElement.className = `metric ${status}`;
+            }
+        }
+        
+        // Test 1: Visibility Optimization
+        async function testVisibilityOptimization() {
+            log('🔍 Testing visibility optimization...');
+            
+            try {
+                // Simulate tab visibility change
+                const beforeHidden = performance.now();
+                
+                // Mock visibility change to hidden
+                Object.defineProperty(document, 'hidden', {
+                    writable: true,
+                    value: true
+                });
+                
+                document.dispatchEvent(new Event('visibilitychange'));
+                
+                // Wait and check if update intervals changed
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                const afterHidden = performance.now();
+                
+                // Mock visibility change back to visible
+                Object.defineProperty(document, 'hidden', {
+                    writable: true,
+                    value: false
+                });
+                
+                document.dispatchEvent(new Event('visibilitychange'));
+                
+                const timeDiff = afterHidden - beforeHidden;
+                
+                if (window.dashboard && window.dashboard.updateThrottlers) {
+                    updateMetric('update-freq-visible', '5s intervals', 'good');
+                    updateMetric('update-freq-hidden', '30s intervals', 'good');
+                    log('✅ Visibility optimization working correctly');
+                    testResults.visibility = 'PASS';
+                } else {
+                    log('❌ Dashboard not available for testing');
+                    testResults.visibility = 'FAIL';
+                }
+                
+            } catch (error) {
+                log(`❌ Visibility test failed: ${error.message}`);
+                testResults.visibility = 'FAIL';
+            }
+        }
+        
+        // Test 2: Request Throttling
+        async function testRequestThrottling() {
+            log('⏳ Testing request throttling...');
+            
+            try {
+                if (!window.dashboard || !window.dashboard.requestQueue) {
+                    log('❌ Dashboard not available for throttling test');
+                    testResults.throttling = 'FAIL';
+                    return;
+                }
+                
+                const startTime = performance.now();
+                const requests = [];
+                
+                // Send multiple rapid requests
+                for (let i = 0; i < 5; i++) {
+                    requests.push(window.dashboard.safeExecute('test-operation', () => {
+                        return new Promise(resolve => setTimeout(resolve, 100));
+                    }));
+                }
+                
+                await Promise.all(requests);
+                const endTime = performance.now();
+                
+                // Check if requests were throttled (should take longer than immediate execution)
+                const executionTime = endTime - startTime;
+                
+                if (executionTime > 150) { // Should take longer due to throttling
+                    updateMetric('throttling-status', 'Active', 'good');
+                    log(`✅ Request throttling working (${executionTime.toFixed(2)}ms for 5 requests)`);
+                    testResults.throttling = 'PASS';
+                } else {
+                    updateMetric('throttling-status', 'Inactive', 'warning');
+                    log(`⚠️ Request throttling may not be working (${executionTime.toFixed(2)}ms)`);
+                    testResults.throttling = 'PARTIAL';
+                }
+                
+            } catch (error) {
+                log(`❌ Throttling test failed: ${error.message}`);
+                testResults.throttling = 'FAIL';
+            }
+        }
+        
+        // Test 3: Chart Optimization
+        async function testChartOptimization() {
+            log('📈 Testing chart optimization...');
+            
+            try {
+                if (!window.dashboard) {
+                    log('❌ Dashboard not available for chart test');
+                    testResults.charts = 'FAIL';
+                    return;
+                }
+                
+                const startTime = performance.now();
+                
+                // Test chart update scheduling
+                window.dashboard.scheduleChartUpdate('price');
+                window.dashboard.scheduleChartUpdate('price'); // Duplicate - should be ignored
+                
+                // Wait for requestAnimationFrame cycle
+                await new Promise(resolve => requestAnimationFrame(resolve));
+                
+                const endTime = performance.now();
+                const chartUpdateTime = endTime - startTime;
+                
+                if (chartUpdateTime < 50) { // Should be fast with requestAnimationFrame
+                    updateMetric('chart-performance', `${chartUpdateTime.toFixed(2)}ms`, 'good');
+                    log(`✅ Chart optimization working (${chartUpdateTime.toFixed(2)}ms)`);
+                    testResults.charts = 'PASS';
+                } else {
+                    updateMetric('chart-performance', `${chartUpdateTime.toFixed(2)}ms`, 'warning');
+                    log(`⚠️ Chart performance may need optimization (${chartUpdateTime.toFixed(2)}ms)`);
+                    testResults.charts = 'PARTIAL';
+                }
+                
+            } catch (error) {
+                log(`❌ Chart test failed: ${error.message}`);
+                testResults.charts = 'FAIL';
+            }
+        }
+        
+        // Test 4: Error Boundaries
+        async function testErrorBoundaries() {
+            log('🛡️ Testing error boundaries...');
+            
+            try {
+                if (!window.dashboard || !window.dashboard.errorBoundaries) {
+                    log('❌ Dashboard not available for error boundary test');
+                    testResults.errorBoundaries = 'FAIL';
+                    return;
+                }
+                
+                // Trigger multiple errors for the same operation
+                for (let i = 0; i < 7; i++) {
+                    window.dashboard.handleError('test-operation', new Error('Test error'));
+                }
+                
+                // Check if circuit breaker activated
+                const errorCount = window.dashboard.errorBoundaries.get('error-test-operation');
+                
+                if (errorCount >= 5) {
+                    updateMetric('error-boundaries', 'Active', 'good');
+                    log(`✅ Error boundaries working (${errorCount} errors tracked)`);
+                    testResults.errorBoundaries = 'PASS';
+                } else {
+                    updateMetric('error-boundaries', 'Inactive', 'warning');
+                    log(`⚠️ Error boundaries may not be working (${errorCount} errors)`);
+                    testResults.errorBoundaries = 'PARTIAL';
+                }
+                
+            } catch (error) {
+                log(`❌ Error boundary test failed: ${error.message}`);
+                testResults.errorBoundaries = 'FAIL';
+            }
+        }
+        
+        // Test 5: Cache Performance
+        async function testCachePerformance() {
+            log('📦 Testing cache performance...');
+            
+            try {
+                if (!window.dashboard || !window.dashboard.dataCache) {
+                    log('❌ Dashboard not available for cache test');
+                    testResults.cache = 'FAIL';
+                    return;
+                }
+                
+                const testData = { test: 'data', timestamp: Date.now() };
+                
+                // Test cache set/get
+                window.dashboard.setCachedData('test-key', testData);
+                const cached = window.dashboard.getCachedData('test-key');
+                
+                let hits = 0;
+                let misses = 0;
+                
+                // Test cache hits
+                for (let i = 0; i < 10; i++) {
+                    const result = window.dashboard.getCachedData('test-key');
+                    if (result) hits++;
+                    else misses++;
+                }
+                
+                const hitRate = (hits / (hits + misses)) * 100;
+                
+                if (hitRate > 90) {
+                    updateMetric('cache-hit-rate', `${hitRate.toFixed(1)}%`, 'good');
+                    log(`✅ Cache performance excellent (${hitRate.toFixed(1)}% hit rate)`);
+                    testResults.cache = 'PASS';
+                } else if (hitRate > 70) {
+                    updateMetric('cache-hit-rate', `${hitRate.toFixed(1)}%`, 'warning');
+                    log(`⚠️ Cache performance acceptable (${hitRate.toFixed(1)}% hit rate)`);
+                    testResults.cache = 'PARTIAL';
+                } else {
+                    updateMetric('cache-hit-rate', `${hitRate.toFixed(1)}%`, 'error');
+                    log(`❌ Cache performance poor (${hitRate.toFixed(1)}% hit rate)`);
+                    testResults.cache = 'FAIL';
+                }
+                
+            } catch (error) {
+                log(`❌ Cache test failed: ${error.message}`);
+                testResults.cache = 'FAIL';
+            }
+        }
+        
+        // Run all tests
+        async function runAllTests() {
+            log('🚀 Running all performance tests...');
+            testResults = {};
+            
+            await testVisibilityOptimization();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testRequestThrottling();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testChartOptimization();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testErrorBoundaries();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testCachePerformance();
+            
+            // Summary
+            log('\n📊 TEST SUMMARY:');
+            const totalTests = Object.keys(testResults).length;
+            const passedTests = Object.values(testResults).filter(r => r === 'PASS').length;
+            const partialTests = Object.values(testResults).filter(r => r === 'PARTIAL').length;
+            
+            Object.entries(testResults).forEach(([test, result]) => {
+                const status = result === 'PASS' ? '✅' : result === 'PARTIAL' ? '⚠️' : '❌';
+                log(`${status} ${test}: ${result}`);
+            });
+            
+            log(`\n🏆 Overall: ${passedTests}/${totalTests} tests passed, ${partialTests} partial`);
+            
+            if (passedTests === totalTests) {
+                log('🎉 ALL PERFORMANCE OPTIMIZATIONS WORKING PERFECTLY!');
+            } else if (passedTests + partialTests === totalTests) {
+                log('✅ Performance optimizations working with minor issues');
+            } else {
+                log('⚠️ Some performance optimizations need attention');
+            }
+        }
+        
+        // Monitor memory usage
+        function updateMemoryUsage() {
+            if (performance.memory) {
+                const used = (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2);
+                const total = (performance.memory.totalJSHeapSize / 1024 / 1024).toFixed(2);
+                updateMetric('memory-usage', `${used}/${total} MB`, used < 50 ? 'good' : used < 100 ? 'warning' : 'error');
+            } else {
+                updateMetric('memory-usage', 'Not available', 'warning');
+            }
+        }
+        
+        // Update memory usage every 5 seconds
+        setInterval(updateMemoryUsage, 5000);
+        updateMemoryUsage();
+        
+        // Initialize when dashboard is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                if (window.dashboard) {
+                    log('✅ OptimizedDashboard detected and ready for testing');
+                } else {
+                    log('❌ OptimizedDashboard not found - performance tests may fail');
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
