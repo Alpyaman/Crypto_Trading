@@ -28,6 +28,10 @@ frozenlist==1.8.0
 fsspec==2025.9.0
 greenlet==3.2.4
 gymnasium==0.29.1
+# Monitoring and observability
+prometheus-client==0.21.1
+prometheus-fastapi-instrumentator==7.0.0
+psutil==6.1.1
 h11==0.16.0
 idna==3.11
 itsdangerous==2.2.0

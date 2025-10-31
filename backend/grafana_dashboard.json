@@ -1,0 +1,313 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Crypto Trading AI - Monitoring Dashboard",
+    "tags": ["trading", "crypto", "ai", "monitoring"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Trading Performance Overview",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "trading_total_trades_total",
+            "legendFormat": "Total Trades"
+          },
+          {
+            "expr": "trading_current_pnl",
+            "legendFormat": "Current PnL"
+          },
+          {
+            "expr": "trading_win_rate",
+            "legendFormat": "Win Rate %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "min": 0
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Real-time PnL",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "trading_current_pnl",
+            "legendFormat": "Realized PnL"
+          },
+          {
+            "expr": "trading_unrealized_pnl",
+            "legendFormat": "Unrealized PnL"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 10
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Trade Volume",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(trading_volume_total[5m])",
+            "legendFormat": "Volume Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD"
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Active Positions",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "trading_active_positions",
+            "legendFormat": "Active Positions"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "min": 0
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Account Balance",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "trading_account_balance",
+            "legendFormat": "Account Balance"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD"
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8}
+      },
+      {
+        "id": 6,
+        "title": "Market Regime Detection",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "regime_confidence",
+            "legendFormat": "{{regime_type}} Confidence"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 7,
+        "title": "Regime Switches",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "increase(regime_switches_total[1h])",
+            "legendFormat": "{{from_regime}} → {{to_regime}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      },
+      {
+        "id": 8,
+        "title": "System Health",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "system_cpu_usage_percent",
+            "legendFormat": "CPU Usage %"
+          },
+          {
+            "expr": "system_memory_usage_percent",
+            "legendFormat": "Memory Usage %"
+          },
+          {
+            "expr": "system_disk_usage_percent",
+            "legendFormat": "Disk Usage %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+      },
+      {
+        "id": 9,
+        "title": "API Performance",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(api_requests_total[5m])",
+            "legendFormat": "{{method}} {{endpoint}} ({{status}})"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+      },
+      {
+        "id": 10,
+        "title": "API Response Times",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(api_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(api_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "50th percentile"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32}
+      },
+      {
+        "id": 11,
+        "title": "ML Model Performance",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "ml_model_accuracy",
+            "legendFormat": "{{model_type}} Accuracy"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32}
+      },
+      {
+        "id": 12,
+        "title": "Error Rate",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(api_errors_total[5m])",
+            "legendFormat": "{{error_type}} Errors"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "errps"
+          }
+        },
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 40}
+      },
+      {
+        "id": 13,
+        "title": "Risk Metrics",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "trading_sharpe_ratio",
+            "legendFormat": "Sharpe Ratio"
+          },
+          {
+            "expr": "trading_max_drawdown",
+            "legendFormat": "Max Drawdown %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 2
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 48}
+      },
+      {
+        "id": 14,
+        "title": "System Uptime",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "system_uptime_seconds",
+            "legendFormat": "Uptime"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "dtdurations"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 48}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "5s",
+    "schemaVersion": 30,
+    "version": 1,
+    "templating": {
+      "list": []
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Regime Switches",
+          "datasource": "Prometheus",
+          "enable": true,
+          "iconColor": "red",
+          "query": "changes(regime_switches_total[1m]) > 0"
+        }
+      ]
+    }
+  }
+}

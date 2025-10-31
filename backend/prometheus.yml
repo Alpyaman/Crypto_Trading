@@ -1,0 +1,47 @@
+# Prometheus configuration for Crypto Trading AI monitoring
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Alertmanager configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           # - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+# rule_files:
+#   - "alert_rules.yml"
+
+# Scrape configuration
+scrape_configs:
+  # Crypto Trading AI Application
+  - job_name: 'crypto-trading-ai'
+    static_configs:
+      - targets: ['host.docker.internal:8000']  # Windows/Mac Docker Desktop
+        # - targets: ['172.17.0.1:8000']       # Linux Docker
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+    scrape_timeout: 10s
+
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+
+  # Node Exporter for system metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+
+  # Additional trading-specific scrape configs
+  - job_name: 'crypto-trading-health'
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+    metrics_path: '/health'
+    scrape_interval: 30s
+    params:
+      format: ['prometheus']

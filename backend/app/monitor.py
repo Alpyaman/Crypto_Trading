@@ -1,5 +1,5 @@
 """
-Monitoring and Logging System
+Enhanced Monitoring and Logging System with Prometheus Integration
 Tracks trading performance, errors, and system health
 """
 import logging
@@ -8,6 +8,14 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from pathlib import Path
+
+# Import monitoring service for Prometheus integration
+try:
+    from app.services.monitoring_service import monitoring_service
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+    monitoring_service = None
 
 
 @dataclass
@@ -37,7 +45,7 @@ class SystemHealth:
 
 
 class TradingMonitor:
-    """Monitors trading activities and system performance"""
+    """Enhanced monitors trading activities and system performance with Prometheus integration"""
     
     def __init__(self, log_dir: str = "logs"):
         self.log_dir = Path(log_dir)
@@ -82,7 +90,7 @@ class TradingMonitor:
         self.error_logger.setLevel(logging.ERROR)
     
     def log_trade(self, trade_metrics: TradeMetrics):
-        """Log a trade execution"""
+        """Log a trade execution with Prometheus integration"""
         self.trade_history.append(trade_metrics)
         
         # Log to file
@@ -100,12 +108,33 @@ class TradingMonitor:
         
         self.trade_logger.info(f"TRADE_EXECUTED: {json.dumps(trade_data)}")
         
+        # Prometheus metrics integration
+        if PROMETHEUS_AVAILABLE and monitoring_service:
+            try:
+                # Determine if trade was profitable
+                is_win = trade_metrics.profit_loss and trade_metrics.profit_loss > 0
+                pnl = trade_metrics.profit_loss or 0.0
+                volume = trade_metrics.price * trade_metrics.quantity
+                
+                # Record trade metrics
+                monitoring_service.record_trade(
+                    is_win=is_win,
+                    pnl=pnl,
+                    volume=volume
+                )
+                
+                # Update account balance
+                monitoring_service.update_account_balance(trade_metrics.balance_after)
+                
+            except Exception as e:
+                self.error_logger.error(f"Error updating Prometheus metrics: {e}")
+        
         # Keep only last 1000 trades in memory
         if len(self.trade_history) > 1000:
             self.trade_history = self.trade_history[-1000:]
     
     def log_system_health(self, health: SystemHealth):
-        """Log system health metrics"""
+        """Log system health metrics with Prometheus integration"""
         self.system_health_history.append(health)
         
         health_data = asdict(health)
@@ -113,12 +142,21 @@ class TradingMonitor:
         
         self.system_logger.info(f"HEALTH_CHECK: {json.dumps(health_data)}")
         
+        # Prometheus metrics integration
+        if PROMETHEUS_AVAILABLE and monitoring_service:
+            try:
+                # Update system metrics (these are handled automatically by monitoring service)
+                # We can add any additional custom metrics here if needed
+                pass
+            except Exception as e:
+                self.error_logger.error(f"Error updating system health metrics: {e}")
+        
         # Keep only last 100 health checks in memory
         if len(self.system_health_history) > 100:
             self.system_health_history = self.system_health_history[-100:]
     
     def log_error(self, error_type: str, message: str, details: Optional[Dict] = None):
-        """Log system errors"""
+        """Log system errors with Prometheus integration"""
         error_data = {
             "timestamp": datetime.now().isoformat(),
             "type": error_type,
@@ -129,9 +167,139 @@ class TradingMonitor:
         self.error_log.append(error_data)
         self.error_logger.error(f"ERROR: {json.dumps(error_data)}")
         
+        # Prometheus metrics integration
+        if PROMETHEUS_AVAILABLE and monitoring_service:
+            try:
+                monitoring_service.record_api_error(error_type)
+            except Exception as e:
+                self.error_logger.error(f"Error recording error metric: {e}")
+        
         # Keep only last 500 errors in memory
         if len(self.error_log) > 500:
             self.error_log = self.error_log[-500:]
+    
+    def log_regime_detection(self, regime_type: str, confidence: float, metrics: Dict[str, Any] = None):
+        """Log regime detection with Prometheus integration"""
+        detection_data = {
+            "timestamp": datetime.now().isoformat(),
+            "regime_type": regime_type,
+            "confidence": confidence,
+            "metrics": metrics or {}
+        }
+        
+        self.system_logger.info(f"REGIME_DETECTION: {json.dumps(detection_data)}")
+        
+        # Prometheus metrics integration
+        if PROMETHEUS_AVAILABLE and monitoring_service:
+            try:
+                monitoring_service.record_regime_detection(regime_type, confidence)
+            except Exception as e:
+                self.error_logger.error(f"Error recording regime detection metric: {e}")
+    
+    def log_regime_switch(self, from_regime: str, to_regime: str):
+        """Log regime switch with Prometheus integration"""
+        switch_data = {
+            "timestamp": datetime.now().isoformat(),
+            "from_regime": from_regime,
+            "to_regime": to_regime
+        }
+        
+        self.system_logger.info(f"REGIME_SWITCH: {json.dumps(switch_data)}")
+        
+        # Prometheus metrics integration
+        if PROMETHEUS_AVAILABLE and monitoring_service:
+            try:
+                monitoring_service.record_regime_switch(from_regime, to_regime)
+            except Exception as e:
+                self.error_logger.error(f"Error recording regime switch metric: {e}")
+    
+    def log_ml_prediction(self, model_type: str, regime: str, confidence: float = None):
+        """Log ML model prediction with Prometheus integration"""
+        prediction_data = {
+            "timestamp": datetime.now().isoformat(),
+            "model_type": model_type,
+            "regime": regime,
+            "confidence": confidence
+        }
+        
+        self.system_logger.info(f"ML_PREDICTION: {json.dumps(prediction_data)}")
+        
+        # Prometheus metrics integration
+        if PROMETHEUS_AVAILABLE and monitoring_service:
+            try:
+                monitoring_service.record_ml_prediction(model_type, regime)
+            except Exception as e:
+                self.error_logger.error(f"Error recording ML prediction metric: {e}")
+    
+    def log_model_training(self, model_type: str, duration: float, accuracy: float = None):
+        """Log ML model training with Prometheus integration"""
+        training_data = {
+            "timestamp": datetime.now().isoformat(),
+            "model_type": model_type,
+            "duration": duration,
+            "accuracy": accuracy
+        }
+        
+        self.system_logger.info(f"MODEL_TRAINING: {json.dumps(training_data)}")
+        
+        # Prometheus metrics integration
+        if PROMETHEUS_AVAILABLE and monitoring_service:
+            try:
+                monitoring_service.record_model_training(model_type, duration)
+                if accuracy is not None:
+                    monitoring_service.update_model_accuracy(model_type, accuracy)
+            except Exception as e:
+                self.error_logger.error(f"Error recording model training metrics: {e}")
+    
+    def update_positions(self, count: int):
+        """Update active positions count with Prometheus integration"""
+        position_data = {
+            "timestamp": datetime.now().isoformat(),
+            "active_positions": count
+        }
+        
+        self.system_logger.info(f"POSITION_UPDATE: {json.dumps(position_data)}")
+        
+        # Prometheus metrics integration
+        if PROMETHEUS_AVAILABLE and monitoring_service:
+            try:
+                monitoring_service.update_positions(count)
+            except Exception as e:
+                self.error_logger.error(f"Error updating positions metric: {e}")
+    
+    def update_unrealized_pnl(self, unrealized_pnl: float):
+        """Update unrealized PnL with Prometheus integration"""
+        pnl_data = {
+            "timestamp": datetime.now().isoformat(),
+            "unrealized_pnl": unrealized_pnl
+        }
+        
+        self.system_logger.info(f"UNREALIZED_PNL: {json.dumps(pnl_data)}")
+        
+        # Prometheus metrics integration
+        if PROMETHEUS_AVAILABLE and monitoring_service:
+            try:
+                monitoring_service.update_unrealized_pnl(unrealized_pnl)
+            except Exception as e:
+                self.error_logger.error(f"Error updating unrealized PnL metric: {e}")
+    
+    def update_risk_metrics(self, sharpe_ratio: float, max_drawdown: float):
+        """Update risk metrics with Prometheus integration"""
+        risk_data = {
+            "timestamp": datetime.now().isoformat(),
+            "sharpe_ratio": sharpe_ratio,
+            "max_drawdown": max_drawdown
+        }
+        
+        self.system_logger.info(f"RISK_METRICS: {json.dumps(risk_data)}")
+        
+        # Prometheus metrics integration
+        if PROMETHEUS_AVAILABLE and monitoring_service:
+            try:
+                monitoring_service.update_risk_metrics(sharpe_ratio, max_drawdown)
+            except Exception as e:
+                self.error_logger.error(f"Error updating risk metrics: {e}")
+    
     
     def get_trading_performance(self, hours: int = 24) -> Dict[str, Any]:
         """Get trading performance metrics for the last N hours"""
