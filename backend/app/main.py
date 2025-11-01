@@ -375,17 +375,6 @@ async def get_metrics_snapshot():
     """
     return monitoring_service.get_metrics_snapshot()
 
-# Temporary basic health endpoint
-@app.get("/health")
-async def basic_health_check():
-    """Basic health check without monitoring service"""
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "message": "Trading API is running (monitoring temporarily disabled)"
-    }
-
-
 if __name__ == "__main__":
     import uvicorn
     
