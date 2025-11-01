@@ -572,12 +572,16 @@ class EnhancedMLService:
             volatility_adjustment = max(0.5, 1 - volatility)
             
             # Adjust based on market regime
+            regime_value = self.market_regime
+            if isinstance(regime_value, dict):
+                regime_value = regime_value.get('primary_regime', 'unknown')
+            
             regime_multiplier = {
                 "trending": 1.2,
                 "ranging": 0.8,
                 "volatile": 0.6,
                 "unknown": 0.7
-            }.get(self.market_regime, 1.0)
+            }.get(regime_value, 1.0)
             
             # Calculate position size
             risk_amount = account_balance * base_risk * confidence_multiplier * volatility_adjustment * regime_multiplier
