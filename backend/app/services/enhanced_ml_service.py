@@ -575,13 +575,15 @@ class EnhancedMLService:
             regime_value = self.market_regime
             if isinstance(regime_value, dict):
                 regime_value = regime_value.get('primary_regime', 'unknown')
+            elif not isinstance(regime_value, str):
+                regime_value = 'unknown'
             
             regime_multiplier = {
                 "trending": 1.2,
                 "ranging": 0.8,
                 "volatile": 0.6,
                 "unknown": 0.7
-            }.get(regime_value, 1.0)
+            }.get(regime_value.lower(), 1.0)
             
             # Calculate position size
             risk_amount = account_balance * base_risk * confidence_multiplier * volatility_adjustment * regime_multiplier
@@ -840,12 +842,18 @@ class EnhancedMLService:
             volume_boost = min(0.1, (current_volume / volume_avg - 1) * 0.1)
             
             # Market regime boost
+            regime_value = self.market_regime
+            if isinstance(regime_value, dict):
+                regime_value = regime_value.get('primary_regime', 'unknown')
+            elif not isinstance(regime_value, str):
+                regime_value = 'unknown'
+                
             regime_boost = {
                 "trending": 0.1,
                 "ranging": -0.05,
                 "volatile": -0.1,
                 "unknown": 0.0
-            }.get(self.market_regime, 0.0)
+            }.get(regime_value.lower(), 0.0)
             
             confidence = base_confidence + trend_consistency + volume_boost + regime_boost
             confidence = max(0.1, min(1.0, confidence))  # Clamp between 0.1 and 1.0
