@@ -20,14 +20,16 @@ from app.core.error_handling import handle_trading_exception
 from app.services.binance_service import BinanceService
 from app.services.ml_service import MLService
 from app.services.trading_service import TradingService
-# from app.services.monitoring_service import monitoring_service
-# from app.services.enhanced_ml_service import EnhancedMLService
-# from app.services.training_state import TrainingStateManager
+from app.services.monitoring_service import monitoring_service
+from app.services.backtesting_service import BacktestingService
+# Enhanced services imported locally in startup_event where they're used
 from app.api.routes import router, set_services
 from app.api.enhanced_routes import router as enhanced_router
 from app.api.v1.api import router as api_v1_router, set_ml_services as set_websocket_services
 from app.api.validated_routes import router as validated_router, set_services as set_validated_services
 from app.api.database_routes import router as database_router
+from app.api.backtest_routes import backtest_router
+from app.api.config_routes import config_router
 
 # Load environment variables
 load_dotenv()
@@ -64,38 +66,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Prometheus monitoring middleware (temporarily disabled)
-# @app.middleware("http")
-# async def monitor_requests(request: Request, call_next):
-#     """Monitor API requests for Prometheus metrics"""
-#     start_time = time.time()
+# Prometheus monitoring middleware
+@app.middleware("http")
+async def monitor_requests(request: Request, call_next):
+    """Monitor API requests for Prometheus metrics"""
+    start_time = time.time()
     
-#     try:
-#         response = await call_next(request)
-#         duration = time.time() - start_time
+    try:
+        response = await call_next(request)
+        duration = time.time() - start_time
         
-#         # Record metrics
-#         monitoring_service.record_api_request(
-#             method=request.method,
-#             endpoint=request.url.path,
-#             status_code=response.status_code,
-#             duration=duration
-#         )
+        # Record metrics
+        monitoring_service.record_api_request(
+            method=request.method,
+            endpoint=request.url.path,
+            status_code=response.status_code,
+            duration=duration
+        )
         
-#         return response
-#     except Exception as e:
-#         duration = time.time() - start_time
+        return response
+    except Exception as e:
+        duration = time.time() - start_time
         
-#         # Record error
-#         monitoring_service.record_api_error(type(e).__name__)
-#         monitoring_service.record_api_request(
-#             method=request.method,
-#             endpoint=request.url.path,
-#             status_code=500,
-#             duration=duration
-#         )
+        # Record error
+        monitoring_service.record_api_error(type(e).__name__)
+        monitoring_service.record_api_request(
+            method=request.method,
+            endpoint=request.url.path,
+            status_code=500,
+            duration=duration
+        )
         
-#         raise
+        raise
 
 # Initialize services
 binance_service = None
@@ -130,6 +132,14 @@ app.include_router(enhanced_router)
 app.include_router(api_v1_router)
 app.include_router(validated_router)
 app.include_router(database_router)
+app.include_router(backtest_router)
+app.include_router(config_router)
+
+# Add a simple test endpoint
+@app.get("/test")
+async def test_endpoint():
+    """Simple test endpoint"""
+    return {"message": "Test endpoint working", "timestamp": datetime.now().isoformat()}
 
 # Add enhanced error handling middleware
 @app.exception_handler(Exception)
@@ -148,7 +158,8 @@ async def global_exception_handler(request: Request, exc: Exception):
                 "timestamp": datetime.utcnow().isoformat()
             }
         )
-app.include_router(enhanced_router)
+
+# app.include_router(enhanced_router)  # Temporarily disabled
 
 # Mount static files for frontend
 frontend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend")
@@ -181,9 +192,9 @@ async def startup_event():
     
     logger.info("Starting Crypto Trading AI application...")
     
-    # Start monitoring service (temporarily disabled)
-    # monitoring_service.start_system_monitoring()
-    logger.info("📊 Prometheus monitoring service temporarily disabled")
+    # Start monitoring service
+    monitoring_service.start_system_monitoring()
+    logger.info("📊 Prometheus monitoring service started")
     
     # Initialize database
     try:
@@ -218,6 +229,9 @@ async def startup_event():
             training_state = TrainingStateManager()
             enhanced_trading_service = EnhancedTradingService(binance_service, enhanced_ml_service)
             
+            # Initialize backtesting service
+            backtesting_service = BacktestingService(binance_service, enhanced_ml_service)
+            
             # Set WebSocket services
             set_websocket_services(enhanced_ml_service, training_state)
             logger.info("WebSocket services initialized successfully")
@@ -226,6 +240,12 @@ async def startup_event():
             set_validated_services(binance_service, enhanced_ml_service, enhanced_trading_service, training_state)
             logger.info("Validated API services initialized successfully")
             
+            # Make services globally available for backtesting API
+            app.state.binance_service = binance_service
+            app.state.enhanced_ml_service = enhanced_ml_service
+            app.state.backtesting_service = backtesting_service
+            logger.info("Backtesting service initialized successfully")
+            
         except ImportError as e:
             logger.warning(f"Enhanced services not available: {e}")
         except Exception as e:
@@ -233,6 +253,7 @@ async def startup_event():
         
         # Set services in routes module
         set_services(binance_service, ml_service, trading_service)
+        logger.info("All services initialized successfully")
         
         # Try to load existing model
         model_loaded = ml_service.load_model()
@@ -255,9 +276,9 @@ async def shutdown_event():
     
     logger.info("Shutting down Crypto Trading AI application...")
     
-    # Stop monitoring service (temporarily disabled)
-    # monitoring_service.stop_system_monitoring()
-    logger.info("📊 Prometheus monitoring service was disabled")
+    # Stop monitoring service
+    monitoring_service.stop_system_monitoring()
+    logger.info("📊 Prometheus monitoring service stopped")
     
     # Stop any active trading
     if trading_service and trading_service.is_trading:
@@ -328,51 +349,31 @@ async def get_price_legacy(symbol: str):
     return {"symbol": symbol, "price": price}
 
 
-# === MONITORING AND OBSERVABILITY ENDPOINTS (TEMPORARILY DISABLED) ===
+# === MONITORING AND OBSERVABILITY ENDPOINTS ===
 
-# @app.get("/metrics", response_class=PlainTextResponse)
-# async def get_prometheus_metrics():
-#     """
-#     Prometheus metrics endpoint
-#     Returns metrics in Prometheus text format for scraping
-#     """
-#     return monitoring_service.get_prometheus_metrics()
+@app.get("/metrics", response_class=PlainTextResponse)
+async def get_prometheus_metrics():
+    """
+    Prometheus metrics endpoint
+    Returns metrics in Prometheus text format for scraping
+    """
+    return monitoring_service.get_prometheus_metrics()
 
-# @app.get("/health")
-# async def health_check():
-#     """
-#     Comprehensive health check endpoint
-#     Returns system health status with detailed metrics
-#     """
-#     return monitoring_service.get_health_status()
+@app.get("/health")
+async def health_check():
+    """
+    Comprehensive health check endpoint
+    Returns system health status with detailed metrics
+    """
+    return monitoring_service.get_health_status()
 
-# @app.get("/metrics/snapshot")
-# async def get_metrics_snapshot():
-#     """
-#     Get current metrics snapshot in JSON format
-#     Useful for dashboards and debugging
-#     """
-#     return monitoring_service.get_metrics_snapshot()
-
-# @app.post("/metrics/export")
-# async def export_metrics(request: Request):
-#     """
-#     Export current metrics to JSON file
-#     """
-#     try:
-#         body = await request.json()
-#         filepath = body.get("filepath", f"metrics_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
-        
-#         monitoring_service.export_metrics_json(filepath)
-        
-#         return {
-#             "status": "success",
-#             "message": f"Metrics exported to {filepath}",
-#             "timestamp": datetime.now().isoformat()
-#         }
-#     except Exception as e:
-#         logger.error(f"Error exporting metrics: {e}")
-#         raise HTTPException(status_code=500, detail=str(e))
+@app.get("/metrics/snapshot")
+async def get_metrics_snapshot():
+    """
+    Get current metrics snapshot in JSON format
+    Useful for dashboards and debugging
+    """
+    return monitoring_service.get_metrics_snapshot()
 
 # Temporary basic health endpoint
 @app.get("/health")

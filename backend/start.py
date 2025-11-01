@@ -87,9 +87,12 @@ def main():
             sys.exit(0)
     
     elif args.env == "development":
-        print("\n🔧 Development mode - Safe for testing")
-        if os.getenv('BINANCE_TESTNET') != 'true':
-            print("⚠️  Warning: BINANCE_TESTNET is not set to 'true'")
+        print("\n🔧 Development mode")
+        if os.getenv('BINANCE_TESTNET') == 'true':
+            print("🧪 Using testnet - Safe for testing")
+        else:
+            print("🚀 Using LIVE API - Real trading enabled!")
+            print("⚠️  Warning: Live trading mode with real money!")
     
     # Prepare uvicorn command
     host = args.host or os.getenv('HOST', '127.0.0.1')

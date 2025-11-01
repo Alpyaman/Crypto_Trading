@@ -1,0 +1,277 @@
+# Crypto Trading AI Configuration
+# Production-ready configuration management with validation
+
+# Environment settings
+environment: "development"  # development, staging, production
+debug: true
+log_level: "INFO"
+
+# API Configuration
+api:
+  host: "127.0.0.1"
+  port: 8000
+  reload: true
+  cors_origins:
+    - "http://localhost:3000"
+    - "http://localhost:8000"
+    - "http://127.0.0.1:8000"
+
+# Binance API Configuration
+binance:
+  testnet: false
+  base_url: "https://api.binance.com"
+  futures_base_url: "https://fapi.binance.com"
+  rate_limit: 1200  # requests per minute
+  timeout: 30  # seconds
+  
+# Trading Parameters
+trading:
+  # Risk Management
+  risk_management:
+    max_position_size: 0.25        # Maximum 25% of portfolio per position
+    max_daily_loss: 0.05           # Stop trading if daily loss exceeds 5%
+    max_drawdown: 0.20             # Maximum portfolio drawdown 20%
+    stop_loss_percentage: 0.03     # 3% stop loss per trade
+    take_profit_percentage: 0.06   # 6% take profit per trade
+    max_concurrent_trades: 3       # Maximum simultaneous positions
+    
+  # Position Sizing
+  position_sizing:
+    conservative:
+      base_size: 0.10              # 10% of portfolio
+      volatility_adjustment: true
+      max_size: 0.15               # Cap at 15%
+      min_size: 0.05               # Minimum 5%
+    
+    balanced:
+      base_size: 0.25              # 25% of portfolio
+      volatility_adjustment: true
+      max_size: 0.35               # Cap at 35%
+      min_size: 0.10               # Minimum 10%
+    
+    aggressive:
+      base_size: 0.50              # 50% of portfolio
+      volatility_adjustment: true
+      max_size: 0.70               # Cap at 70%
+      min_size: 0.20               # Minimum 20%
+
+  # Market Regime Adaptation
+  regime_parameters:
+    trending:
+      momentum_threshold: 0.02     # 2% price momentum
+      trend_strength_min: 0.6      # Minimum trend strength
+      position_multiplier: 1.2     # Increase position by 20%
+      
+    ranging:
+      volatility_threshold: 0.15   # 15% volatility threshold
+      mean_reversion_strength: 0.7 # Mean reversion signal strength
+      position_multiplier: 0.8     # Reduce position by 20%
+      
+    volatile:
+      volatility_threshold: 0.30   # 30% high volatility
+      position_multiplier: 0.6     # Reduce position by 40%
+      stop_loss_tightening: 0.5    # Tighten stop losses by 50%
+
+# Machine Learning Configuration
+machine_learning:
+  # Model Parameters
+  model:
+    type: "PPO"                    # Proximal Policy Optimization
+    policy: "MlpPolicy"            # Multi-layer perceptron
+    learning_rate: 0.0003
+    n_steps: 2048
+    batch_size: 64
+    n_epochs: 10
+    gamma: 0.99                    # Discount factor
+    gae_lambda: 0.95               # GAE lambda
+    clip_range: 0.2                # PPO clip range
+    
+  # Training Parameters
+  training:
+    total_timesteps: 100000        # Training duration
+    eval_freq: 10000               # Evaluation frequency
+    n_eval_episodes: 5             # Episodes per evaluation
+    save_freq: 20000               # Model save frequency
+    patience: 5                    # Early stopping patience
+    min_improvement: 0.01          # Minimum improvement threshold
+    
+  # Feature Engineering
+  features:
+    lookback_window: 50            # Historical data points
+    technical_indicators:
+      - "RSI"
+      - "MACD"
+      - "Bollinger_Bands"
+      - "EMA_12"
+      - "EMA_26"
+      - "Volume_SMA"
+      - "ATR"
+    
+    regime_indicators:
+      - "trend_strength"
+      - "volatility_regime"
+      - "momentum_state"
+      - "volume_profile"
+
+# Backtesting Configuration
+backtesting:
+  # Default Parameters
+  default:
+    initial_balance: 10000.0       # Starting capital
+    commission_rate: 0.001         # 0.1% commission
+    slippage: 0.0005              # 0.05% slippage
+    
+  # Performance Metrics
+  metrics:
+    risk_free_rate: 0.02          # 2% annual risk-free rate
+    benchmark_symbol: "BTCUSDT"    # Benchmark for comparison
+    
+  # Grading Thresholds
+  grading:
+    sharpe_ratio:
+      excellent: 2.0              # A+ grade
+      good: 1.5                   # A grade
+      average: 1.0                # B grade
+      poor: 0.5                   # C grade
+    
+    win_rate:
+      excellent: 0.65             # 65%+ win rate
+      good: 0.55                  # 55%+ win rate
+      average: 0.45               # 45%+ win rate
+      poor: 0.35                  # 35%+ win rate
+    
+    max_drawdown:
+      excellent: 0.05             # <5% drawdown
+      good: 0.10                  # <10% drawdown
+      average: 0.20               # <20% drawdown
+      poor: 0.30                  # <30% drawdown
+
+# Database Configuration
+database:
+  url: "sqlite:///./crypto_trading.db"
+  echo: false                     # SQL query logging
+  pool_size: 10
+  max_overflow: 20
+  pool_timeout: 30
+  
+  # Data Retention
+  retention:
+    price_data_days: 365          # Keep 1 year of price data
+    trade_history_days: 730       # Keep 2 years of trades
+    backtest_results_days: 90     # Keep 3 months of backtests
+    log_retention_days: 30        # Keep 1 month of logs
+
+# Monitoring Configuration
+monitoring:
+  prometheus:
+    enabled: true
+    port: 9090
+    metrics_path: "/metrics"
+    
+  # Alert Thresholds
+  alerts:
+    high_drawdown: 0.15           # Alert at 15% drawdown
+    low_win_rate: 0.40            # Alert if win rate below 40%
+    api_error_rate: 0.05          # Alert if 5% API errors
+    system_cpu_usage: 0.85        # Alert at 85% CPU
+    system_memory_usage: 0.85     # Alert at 85% memory
+    
+  # Health Checks
+  health_check:
+    interval_seconds: 60          # Check every minute
+    timeout_seconds: 30           # Health check timeout
+    
+# Notification Configuration
+notifications:
+  enabled: true
+  
+  # Channels
+  channels:
+    console: true                 # Console logging
+    file: true                    # File logging
+    webhook: false                # Webhook notifications
+    
+  # Notification Levels
+  levels:
+    trade_execution: "INFO"       # Log all trades
+    risk_alerts: "WARNING"        # Risk management alerts
+    system_errors: "ERROR"        # System errors
+    performance_updates: "INFO"   # Performance metrics
+
+# Security Configuration
+security:
+  # API Security
+  api_key_rotation_days: 90       # Rotate API keys quarterly
+  session_timeout_minutes: 60     # Session timeout
+  max_login_attempts: 5           # Account lockout threshold
+  
+  # Data Encryption
+  encryption:
+    enabled: true
+    algorithm: "AES-256"
+    key_rotation_days: 30         # Monthly key rotation
+    
+# Performance Optimization
+performance:
+  # Caching
+  cache:
+    enabled: true
+    ttl_seconds: 300              # 5-minute cache TTL
+    max_size: 1000                # Maximum cache entries
+    
+  # Async Processing
+  async:
+    worker_threads: 4             # Background worker threads
+    queue_size: 1000              # Task queue size
+    timeout_seconds: 120          # Task timeout
+    
+  # Resource Limits
+  limits:
+    max_memory_mb: 2048           # 2GB memory limit
+    max_cpu_percent: 80           # 80% CPU limit
+    max_disk_gb: 10               # 10GB disk limit
+
+# Development Configuration
+development:
+  # Testing
+  testing:
+    mock_api_calls: false         # Use real API in development
+    test_data_symbols:
+      - "BTCUSDT"
+      - "ETHUSDT"
+      - "ADAUSDT"
+    
+  # Debugging
+  debug:
+    verbose_logging: true         # Detailed logging
+    profile_performance: false    # Performance profiling
+    save_intermediate_results: true # Save debug data
+    
+# Production Overrides
+production:
+  debug: false
+  log_level: "WARNING"
+  
+  # Binance Live API
+  binance:
+    testnet: false
+    base_url: "https://api.binance.com"
+    futures_base_url: "https://fapi.binance.com"
+  
+  # Enhanced Security
+  security:
+    api_key_rotation_days: 30     # Monthly rotation in production
+    session_timeout_minutes: 30   # Shorter sessions
+    
+  # Performance Tuning
+  performance:
+    cache:
+      ttl_seconds: 600            # 10-minute cache in production
+    async:
+      worker_threads: 8           # More workers in production
+      
+  # Monitoring
+  monitoring:
+    alerts:
+      high_drawdown: 0.10         # Stricter alerts in production
+      api_error_rate: 0.02        # Lower error tolerance
